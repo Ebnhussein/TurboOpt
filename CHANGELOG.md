@@ -1,5 +1,12 @@
 # Changelog
 
+## v11.3
+
+- Redesigned browser version: a Home screen with one main action (Doctor), a health summary, three key numbers and quick actions; clearer sections with icons; a progress panel with a Stop button and a Done summary; details in a collapsible log; a visible banner when Dry run is on.
+- Doctor results are now a full page, grouped by severity, with a single primary button (Fix recommended) that stays in view, expandable details per item, and advice-only items collapsed.
+- The startup manager uses the same page layout. Windows open with an X, Escape or a click outside.
+- 9 new texts translated into all 10 languages.
+
 ## v11.2
 
 - Fixed: in the browser version, the Doctor results window could be taller than a small app window, hiding the Fix / Ignore / Close buttons. The list now scrolls and the buttons always show. Added a close button (X), the Escape key and click-outside to close any window.

@@ -145,7 +145,16 @@
                "fix_UacOn":  "UAC on",
                "fix_RdpOff":  "Remote Desktop off",
                "fix_Smb1Off":  "SMBv1 off",
-               "fix_GuestOff":  "disable Guest"
+               "fix_GuestOff":  "disable Guest",
+               "hero_sub":  "One scan checks Windows, updates, drivers and security. You choose what gets fixed.",
+               "trust":  "Nothing changes until you confirm. Every change can be undone.",
+               "quick":  "Quick actions",
+               "show_details":  "Show details",
+               "hide_details":  "Hide details",
+               "issues_found":  "{0} things need attention",
+               "fix_recommended":  "Fix recommended ({0})",
+               "preview_on":  "Preview mode is on: nothing will be changed.",
+               "more_info":  "Advice only ({0})"
            },
     "ar":  {
                "_name":  "العربية",
@@ -293,7 +302,16 @@
                "fix_UacOn":  "تشغيل UAC",
                "fix_RdpOff":  "إيقاف سطح المكتب البعيد",
                "fix_Smb1Off":  "إيقاف SMBv1",
-               "fix_GuestOff":  "تعطيل حساب Guest"
+               "fix_GuestOff":  "تعطيل حساب Guest",
+               "hero_sub":  "فحص واحد يراجع ويندوز والتحديثات والتعريفات والأمان. وأنت اللي تختار إيه يتصلّح.",
+               "trust":  "مفيش حاجة بتتغير إلا بعد موافقتك. وكل تغيير تقدر ترجع فيه.",
+               "quick":  "إجراءات سريعة",
+               "show_details":  "عرض التفاصيل",
+               "hide_details":  "إخفاء التفاصيل",
+               "issues_found":  "{0} حاجات محتاجة انتباه",
+               "fix_recommended":  "إصلاح الموصى به ({0})",
+               "preview_on":  "وضع التجربة شغّال: مفيش حاجة هتتغير.",
+               "more_info":  "نصائح فقط ({0})"
            },
     "es":  {
                "_name":  "Español",
@@ -441,7 +459,16 @@
                "fix_UacOn":  "activar UAC",
                "fix_RdpOff":  "desactivar Escritorio remoto",
                "fix_Smb1Off":  "desactivar SMBv1",
-               "fix_GuestOff":  "desactivar Invitado"
+               "fix_GuestOff":  "desactivar Invitado",
+               "hero_sub":  "Un solo análisis revisa Windows, actualizaciones, controladores y seguridad. Tú eliges qué se arregla.",
+               "trust":  "Nada cambia hasta que confirmes. Cada cambio se puede deshacer.",
+               "quick":  "Acciones rápidas",
+               "show_details":  "Mostrar detalles",
+               "hide_details":  "Ocultar detalles",
+               "issues_found":  "{0} cosas necesitan atención",
+               "fix_recommended":  "Arreglar lo recomendado ({0})",
+               "preview_on":  "El modo de prueba está activado: no se cambiará nada.",
+               "more_info":  "Solo consejos ({0})"
            },
     "fr":  {
                "_name":  "Français",
@@ -589,7 +616,16 @@
                "fix_UacOn":  "activer l\u0027UAC",
                "fix_RdpOff":  "désactiver le Bureau à distance",
                "fix_Smb1Off":  "désactiver SMBv1",
-               "fix_GuestOff":  "désactiver Invité"
+               "fix_GuestOff":  "désactiver Invité",
+               "hero_sub":  "Une seule analyse vérifie Windows, les mises à jour, les pilotes et la sécurité. Vous choisissez ce qui est corrigé.",
+               "trust":  "Rien ne change sans votre confirmation. Chaque modification peut être annulée.",
+               "quick":  "Actions rapides",
+               "show_details":  "Afficher les détails",
+               "hide_details":  "Masquer les détails",
+               "issues_found":  "{0} points demandent votre attention",
+               "fix_recommended":  "Corriger le recommandé ({0})",
+               "preview_on":  "Le mode test est activé : rien ne sera modifié.",
+               "more_info":  "Conseils seulement ({0})"
            },
     "de":  {
                "_name":  "Deutsch",
@@ -737,7 +773,16 @@
                "fix_UacOn":  "UAC an",
                "fix_RdpOff":  "Remotedesktop aus",
                "fix_Smb1Off":  "SMBv1 aus",
-               "fix_GuestOff":  "Gast deaktivieren"
+               "fix_GuestOff":  "Gast deaktivieren",
+               "hero_sub":  "Ein Scan prüft Windows, Updates, Treiber und Sicherheit. Sie wählen, was behoben wird.",
+               "trust":  "Nichts ändert sich ohne Ihre Bestätigung. Jede Änderung lässt sich rückgängig machen.",
+               "quick":  "Schnellaktionen",
+               "show_details":  "Details anzeigen",
+               "hide_details":  "Details ausblenden",
+               "issues_found":  "{0} Punkte brauchen Aufmerksamkeit",
+               "fix_recommended":  "Empfohlenes beheben ({0})",
+               "preview_on":  "Testlauf ist aktiv: Es wird nichts geändert.",
+               "more_info":  "Nur Hinweise ({0})"
            },
     "pt":  {
                "_name":  "Português",
@@ -885,7 +930,16 @@
                "fix_UacOn":  "ativar UAC",
                "fix_RdpOff":  "desativar Área de Trabalho Remota",
                "fix_Smb1Off":  "desativar SMBv1",
-               "fix_GuestOff":  "desativar Convidado"
+               "fix_GuestOff":  "desativar Convidado",
+               "hero_sub":  "Uma verificação analisa o Windows, atualizações, drivers e segurança. Você escolhe o que será corrigido.",
+               "trust":  "Nada muda até você confirmar. Cada alteração pode ser desfeita.",
+               "quick":  "Ações rápidas",
+               "show_details":  "Mostrar detalhes",
+               "hide_details":  "Ocultar detalhes",
+               "issues_found":  "{0} itens precisam de atenção",
+               "fix_recommended":  "Corrigir o recomendado ({0})",
+               "preview_on":  "O modo de teste está ativo: nada será alterado.",
+               "more_info":  "Apenas dicas ({0})"
            },
     "ru":  {
                "_name":  "Русский",
@@ -1033,7 +1087,16 @@
                "fix_UacOn":  "включить UAC",
                "fix_RdpOff":  "выключить удалённый рабочий стол",
                "fix_Smb1Off":  "выключить SMBv1",
-               "fix_GuestOff":  "отключить гостя"
+               "fix_GuestOff":  "отключить гостя",
+               "hero_sub":  "Одна проверка охватывает Windows, обновления, драйверы и безопасность. Вы сами выбираете, что исправлять.",
+               "trust":  "Ничего не меняется без вашего подтверждения. Каждое изменение можно отменить.",
+               "quick":  "Быстрые действия",
+               "show_details":  "Показать подробности",
+               "hide_details":  "Скрыть подробности",
+               "issues_found":  "Требуют внимания: {0}",
+               "fix_recommended":  "Исправить рекомендуемое ({0})",
+               "preview_on":  "Пробный режим включён: ничего не будет изменено.",
+               "more_info":  "Только советы ({0})"
            },
     "zh":  {
                "_name":  "中文 (简体)",
@@ -1181,7 +1244,16 @@
                "fix_UacOn":  "开启 UAC",
                "fix_RdpOff":  "关闭远程桌面",
                "fix_Smb1Off":  "关闭 SMBv1",
-               "fix_GuestOff":  "禁用来宾账户"
+               "fix_GuestOff":  "禁用来宾账户",
+               "hero_sub":  "一次扫描即可检查 Windows、更新、驱动和安全。由你决定修复哪些项目。",
+               "trust":  "未经你确认不会更改任何内容。每项更改都可以撤销。",
+               "quick":  "快捷操作",
+               "show_details":  "显示详情",
+               "hide_details":  "隐藏详情",
+               "issues_found":  "{0} 项需要处理",
+               "fix_recommended":  "修复推荐项 ({0})",
+               "preview_on":  "试运行已开启：不会更改任何内容。",
+               "more_info":  "仅供参考 ({0})"
            },
     "hi":  {
                "_name":  "हिन्दी",
@@ -1329,7 +1401,16 @@
                "fix_UacOn":  "UAC चालू",
                "fix_RdpOff":  "रिमोट डेस्कटॉप बंद",
                "fix_Smb1Off":  "SMBv1 बंद",
-               "fix_GuestOff":  "गेस्ट अक्षम करें"
+               "fix_GuestOff":  "गेस्ट अक्षम करें",
+               "hero_sub":  "एक स्कैन Windows, अपडेट, ड्राइवर और सुरक्षा जाँचता है। क्या ठीक होगा, यह आप चुनते हैं।",
+               "trust":  "आपकी पुष्टि के बिना कुछ नहीं बदलता। हर बदलाव वापस किया जा सकता है।",
+               "quick":  "त्वरित कार्य",
+               "show_details":  "विवरण दिखाएँ",
+               "hide_details":  "विवरण छिपाएँ",
+               "issues_found":  "{0} चीज़ों पर ध्यान चाहिए",
+               "fix_recommended":  "सुझाए गए ठीक करें ({0})",
+               "preview_on":  "ट्रायल मोड चालू है: कुछ नहीं बदलेगा।",
+               "more_info":  "केवल सलाह ({0})"
            },
     "tr":  {
                "_name":  "Türkçe",
@@ -1477,6 +1558,15 @@
                "fix_UacOn":  "UAC\u0027yi aç",
                "fix_RdpOff":  "Uzak Masaüstü\u0027nü kapat",
                "fix_Smb1Off":  "SMBv1\u0027i kapat",
-               "fix_GuestOff":  "Konuğu devre dışı bırak"
+               "fix_GuestOff":  "Konuğu devre dışı bırak",
+               "hero_sub":  "Tek bir tarama Windows\u0027u, güncellemeleri, sürücüleri ve güvenliği kontrol eder. Neyin düzeltileceğini siz seçersiniz.",
+               "trust":  "Onayınız olmadan hiçbir şey değişmez. Her değişiklik geri alınabilir.",
+               "quick":  "Hızlı işlemler",
+               "show_details":  "Ayrıntıları göster",
+               "hide_details":  "Ayrıntıları gizle",
+               "issues_found":  "{0} öğe dikkat gerektiriyor",
+               "fix_recommended":  "Önerilenleri düzelt ({0})",
+               "preview_on":  "Deneme modu açık: hiçbir şey değiştirilmeyecek.",
+               "more_info":  "Yalnızca öneri ({0})"
            }
 }
