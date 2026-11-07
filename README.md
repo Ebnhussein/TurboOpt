@@ -97,3 +97,5 @@ Made by [Ebnhussein](https://github.com/Ebnhussein). Project page: https://githu
 ## License
 
 MIT, see `LICENSE`.
+
+<!-- test: this pull request must NOT be auto-merged -->
