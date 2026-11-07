@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Add or fix a translation
+    url: https://github.com/Ebnhussein/TurboOpt/blob/main/CONTRIBUTING.md
+    about: Edit TurboUI_strings.json and open a pull request. It is merged automatically when the check passes.
