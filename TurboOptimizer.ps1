@@ -1,4 +1,4 @@
-<#
+﻿<#
   Windows Turbo Optimizer Pro v11.0
   Run through TurboOptimizer.bat, or:  powershell -ExecutionPolicy Bypass -File TurboOptimizer.ps1 [-DryRun] [-SelfTest]
   -DryRun   : show what would happen, change nothing
@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '11.1'
+$script:Version    = '11.2'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'

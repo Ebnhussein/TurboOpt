@@ -63,7 +63,11 @@ input.swin:checked+.sw::after{inset-inline-start:19px}
 .btn.bad{background:var(--bad);border-color:var(--bad);color:#fff}
 .veil{position:fixed;inset:0;background:rgba(8,12,20,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:9}
 .veil.on{display:flex}
-.modal{background:var(--panel);color:var(--text);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4);width:min(860px,100%);max-height:100%;display:flex;flex-direction:column}
+.modal{background:var(--panel);color:var(--text);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4);width:min(860px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;position:relative}
+.modal>div{display:flex;flex-direction:column;min-height:0;flex:1}
+.xbtn{position:absolute;top:10px;inset-inline-end:12px;width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:18px;line-height:1}
+.xbtn:hover{background:var(--accent2);color:var(--text)}
+.modal h2{padding-inline-end:56px}
 .modal.sm{width:min(480px,100%)}
 .modal h2{margin:0;padding:16px 20px 8px;font-size:17px}
 .mbody{padding:6px 20px;overflow:auto;flex:1;min-height:0;white-space:pre-wrap}
@@ -207,14 +211,17 @@ function appendLog(items){
 }
 
 // ---- modals
-function showModal(node,small){const m=$('modal');m.innerHTML='';m.className='modal'+(small?' sm':'');m.append(node);$('veil').classList.add('on');modalOpen=true;}
-function hideModal(){$('veil').classList.remove('on');modalOpen=false;}
+let modalCancel=null;
+function showModal(node,small,cancel){const m=$('modal');m.innerHTML='';m.className='modal'+(small?' sm':'');m.append(node);modalCancel=cancel||null;if(cancel){const x=el('button',{class:'xbtn',text:'✕','aria-label':T('dlg_close')});x.onclick=cancel;m.append(x);}$('veil').classList.add('on');modalOpen=true;}
+function hideModal(){$('veil').classList.remove('on');modalOpen=false;modalCancel=null;}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modalCancel)modalCancel();});
+$('veil').addEventListener('mousedown',e=>{if(e.target===$('veil')&&modalCancel)modalCancel();});
 function askModal(text,yesLabel,noLabel){
   return new Promise(res=>{
     const yes=el('button',{class:'btn pri',text:yesLabel||T('dlg_ok')}),no=el('button',{class:'btn',text:noLabel||T('dlg_cancel')});
     const box=el('div',null,el('div',{class:'mbody',text:text}),el('div',{class:'mfoot'},no,yes));
     yes.onclick=()=>{hideModal();res(true);};no.onclick=()=>{hideModal();res(false);};
-    showModal(box,true);yes.focus();
+    showModal(box,true,()=>no.click());yes.focus();
   });
 }
 function inputModal(text,def){
@@ -224,7 +231,7 @@ function inputModal(text,def){
     const box=el('div',null,el('div',{class:'mbody'},document.createTextNode(text),inp),el('div',{class:'mfoot'},cn,ok));
     ok.onclick=()=>{hideModal();res(inp.value);};cn.onclick=()=>{hideModal();res('');};
     inp.onkeydown=e=>{if(e.key==='Enter')ok.click();};
-    showModal(box,true);inp.focus();inp.select();
+    showModal(box,true,()=>cn.click());inp.focus();inp.select();
   });
 }
 async function handlePrompt(p){
@@ -255,7 +262,7 @@ function findingsModal(d){
     if(ids.length)try{await api('/api/fix',{ids,mode});}catch(e){toast(e.message);}
   };
   fix.onclick=()=>send('Fix');ign.onclick=()=>send('Ignore');cls.onclick=async()=>{hideModal();await closeDialog(d.id);};
-  showModal(el('div',null,el('h2',{text:T('dlg_findings')}),el('div',{class:'mbody'},tbl,dtl),el('div',{class:'mfoot'},cls,el('span',{class:'sp'}),ign,fix)));
+  showModal(el('div',null,el('h2',{text:T('dlg_findings')}),el('div',{class:'mbody'},tbl,dtl),el('div',{class:'mfoot'},cls,el('span',{class:'sp'}),ign,fix)),false,()=>cls.click());
 }
 function startupModal(d){
   const items=d.items||[];const tb=el('tbody');const checks=[];
@@ -274,7 +281,7 @@ function startupModal(d){
     if(keys.length)try{await api('/api/startup',{keys,mode,minutes:parseInt(mins.value)||2});}catch(e){toast(e.message);}
   };
   dis.onclick=()=>send('Disable');del.onclick=()=>send('Delay');cls.onclick=async()=>{hideModal();await closeDialog(d.id);};
-  showModal(el('div',null,el('h2',{text:T('dlg_startup')}),el('div',{class:'mbody'},tbl),el('div',{class:'mfoot'},cls,el('span',{class:'sp'}),el('span',{class:'tag',text:T('dlg_minutes')}),mins,del,dis)));
+  showModal(el('div',null,el('h2',{text:T('dlg_startup')}),el('div',{class:'mbody'},tbl),el('div',{class:'mfoot'},cls,el('span',{class:'sp'}),el('span',{class:'tag',text:T('dlg_minutes')}),mins,del,dis)),false,()=>cls.click());
 }
 async function closeDialog(id){try{await api('/api/dialog_close',{id});}catch(e){}}
 function dnsModal(){
@@ -284,7 +291,7 @@ function dnsModal(){
   const ok=el('button',{class:'btn pri',text:T('dlg_ok')}),cn=el('button',{class:'btn',text:T('dlg_cancel')});
   cn.onclick=hideModal;
   ok.onclick=async()=>{const pick=parseInt(box.querySelector('input:checked').value);hideModal();try{await api('/api/dns',{pick});}catch(e){toast(e.message);}};
-  showModal(el('div',null,el('h2',{text:T('dlg_dns')}),el('div',{class:'mbody'},box),el('div',{class:'mfoot'},cn,ok)),true);
+  showModal(el('div',null,el('h2',{text:T('dlg_dns')}),el('div',{class:'mbody'},box),el('div',{class:'mfoot'},cn,ok)),true,()=>cn.click());
 }
 
 // ---- actions

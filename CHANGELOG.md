@@ -1,5 +1,9 @@
 # Changelog
 
+## v11.2
+
+- Fixed: in the browser version, the Doctor results window could be taller than a small app window, hiding the Fix / Ignore / Close buttons. The list now scrolls and the buttons always show. Added a close button (X), the Escape key and click-outside to close any window.
+
 ## v11.1
 
 - Easy download for users: each release now has `TurboOptimizer-v11.1.zip` with one launcher (`Start Turbo Optimizer.bat`), a short `README.txt` and an `app` folder. No repository files to sort through.
