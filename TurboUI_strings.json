@@ -154,7 +154,9 @@
                "issues_found":  "{0} things need attention",
                "fix_recommended":  "Fix recommended ({0})",
                "preview_on":  "Preview mode is on: nothing will be changed.",
-               "more_info":  "Advice only ({0})"
+               "more_info":  "Advice only ({0})",
+               "select_all":  "Select all",
+               "select_none":  "Clear selection"
            },
     "ar":  {
                "_name":  "العربية",
@@ -311,7 +313,9 @@
                "issues_found":  "{0} حاجات محتاجة انتباه",
                "fix_recommended":  "إصلاح الموصى به ({0})",
                "preview_on":  "وضع التجربة شغّال: مفيش حاجة هتتغير.",
-               "more_info":  "نصائح فقط ({0})"
+               "more_info":  "نصائح فقط ({0})",
+               "select_all":  "تحديد الكل",
+               "select_none":  "إلغاء التحديد"
            },
     "es":  {
                "_name":  "Español",
@@ -468,7 +472,9 @@
                "issues_found":  "{0} cosas necesitan atención",
                "fix_recommended":  "Arreglar lo recomendado ({0})",
                "preview_on":  "El modo de prueba está activado: no se cambiará nada.",
-               "more_info":  "Solo consejos ({0})"
+               "more_info":  "Solo consejos ({0})",
+               "select_all":  "Seleccionar todo",
+               "select_none":  "Quitar selección"
            },
     "fr":  {
                "_name":  "Français",
@@ -625,7 +631,9 @@
                "issues_found":  "{0} points demandent votre attention",
                "fix_recommended":  "Corriger le recommandé ({0})",
                "preview_on":  "Le mode test est activé : rien ne sera modifié.",
-               "more_info":  "Conseils seulement ({0})"
+               "more_info":  "Conseils seulement ({0})",
+               "select_all":  "Tout sélectionner",
+               "select_none":  "Tout désélectionner"
            },
     "de":  {
                "_name":  "Deutsch",
@@ -782,7 +790,9 @@
                "issues_found":  "{0} Punkte brauchen Aufmerksamkeit",
                "fix_recommended":  "Empfohlenes beheben ({0})",
                "preview_on":  "Testlauf ist aktiv: Es wird nichts geändert.",
-               "more_info":  "Nur Hinweise ({0})"
+               "more_info":  "Nur Hinweise ({0})",
+               "select_all":  "Alle auswählen",
+               "select_none":  "Auswahl aufheben"
            },
     "pt":  {
                "_name":  "Português",
@@ -939,7 +949,9 @@
                "issues_found":  "{0} itens precisam de atenção",
                "fix_recommended":  "Corrigir o recomendado ({0})",
                "preview_on":  "O modo de teste está ativo: nada será alterado.",
-               "more_info":  "Apenas dicas ({0})"
+               "more_info":  "Apenas dicas ({0})",
+               "select_all":  "Selecionar tudo",
+               "select_none":  "Limpar seleção"
            },
     "ru":  {
                "_name":  "Русский",
@@ -1096,7 +1108,9 @@
                "issues_found":  "Требуют внимания: {0}",
                "fix_recommended":  "Исправить рекомендуемое ({0})",
                "preview_on":  "Пробный режим включён: ничего не будет изменено.",
-               "more_info":  "Только советы ({0})"
+               "more_info":  "Только советы ({0})",
+               "select_all":  "Выбрать всё",
+               "select_none":  "Снять выбор"
            },
     "zh":  {
                "_name":  "中文 (简体)",
@@ -1253,7 +1267,9 @@
                "issues_found":  "{0} 项需要处理",
                "fix_recommended":  "修复推荐项 ({0})",
                "preview_on":  "试运行已开启：不会更改任何内容。",
-               "more_info":  "仅供参考 ({0})"
+               "more_info":  "仅供参考 ({0})",
+               "select_all":  "全选",
+               "select_none":  "清除选择"
            },
     "hi":  {
                "_name":  "हिन्दी",
@@ -1410,7 +1426,9 @@
                "issues_found":  "{0} चीज़ों पर ध्यान चाहिए",
                "fix_recommended":  "सुझाए गए ठीक करें ({0})",
                "preview_on":  "ट्रायल मोड चालू है: कुछ नहीं बदलेगा।",
-               "more_info":  "केवल सलाह ({0})"
+               "more_info":  "केवल सलाह ({0})",
+               "select_all":  "सभी चुनें",
+               "select_none":  "चयन हटाएँ"
            },
     "tr":  {
                "_name":  "Türkçe",
@@ -1567,6 +1585,8 @@
                "issues_found":  "{0} öğe dikkat gerektiriyor",
                "fix_recommended":  "Önerilenleri düzelt ({0})",
                "preview_on":  "Deneme modu açık: hiçbir şey değiştirilmeyecek.",
-               "more_info":  "Yalnızca öneri ({0})"
+               "more_info":  "Yalnızca öneri ({0})",
+               "select_all":  "Tümünü seç",
+               "select_none":  "Seçimi temizle"
            }
 }

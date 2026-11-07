@@ -321,7 +321,9 @@ function renderResults(v){
   const panel=el('section',{class:'panel'});
   const head=el('header',{}); const h=el('h1',{text:items.length?fmt(T('issues_found'),items.filter(i=>i.Sev!=='INFO').length||items.length):T('dlg_findings')});
   const x=el('button',{class:'btn icon ghost','aria-label':T('dlg_close'),html:icon('x')}); x.onclick=()=>{closeDialog();};
-  head.append(h,x); panel.append(head);
+  const sa=el('button',{class:'btn ghost',text:T('select_all')}); sa.onclick=()=>{ items.forEach(i=>selected.add(i.Id)); showInfo=true; render(); };
+  const sn=el('button',{class:'btn ghost',text:T('select_none')}); sn.onclick=()=>{ selected.clear(); render(); };
+  head.append(h,sa,sn,x); panel.append(head);
   if(!items.length){ panel.append(el('div',{class:'empty',html:'<div class="ring ok">'+icon('check')+'</div><b></b>'})); panel.querySelector('.empty b').textContent=T('msg_no_findings'); v.append(panel); return; }
   const groups=[['HIGH',items.filter(i=>i.Sev==='HIGH')],['MED',items.filter(i=>i.Sev==='MED')],['INFO',items.filter(i=>i.Sev==='INFO')]];
   for(const [sev,list] of groups){
@@ -333,18 +335,21 @@ function renderResults(v){
     panel.append(g);
   }
   const bar=el('div',{class:'stickybar'});
-  const n=selectedCount();
+  const n=selectedFixCount(), nAll=selectedCount();
   const fix=el('button',{class:'btn primary big'}); fix.textContent=n?fmt(T('fix_recommended'),n):T('dlg_fix'); fix.disabled=n===0; fix.onclick=()=>sendFix('Fix');
-  const ign=el('button',{class:'btn',text:T('dlg_ignore')}); ign.disabled=n===0; ign.onclick=()=>sendFix('Ignore');
+  const ign=el('button',{class:'btn',text:nAll?T('dlg_ignore')+' ('+nAll+')':T('dlg_ignore')}); ign.disabled=nAll===0; ign.onclick=()=>sendFix('Ignore');
   const cls=el('button',{class:'btn ghost',text:T('dlg_close')}); cls.onclick=()=>closeDialog();
   bar.append(fix,ign,el('span',{class:'sp'}),cls); panel.append(bar); v.append(panel);
 }
 function badge(sev){const b=el('span',{class:'badge '+sev,html:icon(sev==='INFO'?'info':'alert')+'<span></span>'});b.querySelector('span').textContent=T('sev_'+sev);return b;}
 function selectedCount(){ return (results.items||[]).filter(f=>selected.has(f.Id)).length; }
+function selectedFixCount(){ return (results.items||[]).filter(f=>selected.has(f.Id)&&f.Fix).length; }
 function itemRow(f){
   const row=el('div',{class:'item'});
-  const cb=el('input',{type:'checkbox','aria-label':f.Title}); cb.checked=selected.has(f.Id); cb.disabled=!f.Fix;
+  const cb=el('input',{type:'checkbox','aria-label':f.Title}); cb.checked=selected.has(f.Id);
   cb.onchange=()=>{ if(cb.checked) selected.add(f.Id); else selected.delete(f.Id); render(); };
+  row.style.cursor='pointer';
+  row.addEventListener('click',e=>{ if(e.target.closest('button')||e.target===cb) return; cb.checked=!cb.checked; cb.onchange(); });
   const main=el('div',{class:'main'}); main.append(el('div',{class:'title',text:f.Title}));
   let fx=f.Fix?T('fix_'+f.Fix):T('fix_none'); if(f.Download) fx+=' ('+f.Download+')';
   const right=el('div',{class:'fixl',text:fx});
@@ -358,7 +363,7 @@ function itemRow(f){
   return row;
 }
 async function sendFix(mode){
-  const ids=[...selected]; if(!ids.length) return;
+  const ids=[...selected].filter(id=>mode!=='Fix'||(results.items||[]).some(f=>f.Id===id&&f.Fix)); if(!ids.length) return;
   try{ await closeDialog(true); await api('/api/fix',{ids,mode}); }catch(e){ toast(e.message); }
 }
 async function closeDialog(keepView){

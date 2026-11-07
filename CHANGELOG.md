@@ -1,5 +1,9 @@
 # Changelog
 
+## v11.4
+
+- Doctor results: every item can now be ticked (before, advice-only items had a greyed-out box and could not be selected). Clicking anywhere on a row ticks it. New Select all and Clear selection buttons. Fix applies to the items that have a fix; Ignore applies to everything ticked, with a count.
+
 ## v11.3
 
 - Redesigned browser version: a Home screen with one main action (Doctor), a health summary, three key numbers and quick actions; clearer sections with icons; a progress panel with a Stop button and a Done summary; details in a collapsible log; a visible banner when Dry run is on.
