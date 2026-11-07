@@ -1,0 +1,31 @@
+name: Release package
+
+# Push a tag like v11.1 and this builds TurboOptimizer-v11.1.zip (only what a user needs:
+# one launcher, a short README and an app folder) and attaches it to the GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the package
+        shell: powershell
+        run: .\tools\build-release.ps1 -Tag "${{ github.ref_name }}"
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file dist/notes.md
+          else
+            gh release create "$TAG" --title "Turbo Optimizer $TAG" --notes-file dist/notes.md
+          fi
+          gh release upload "$TAG" "dist/TurboOptimizer-$TAG.zip" --clobber

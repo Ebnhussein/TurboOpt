@@ -13,3 +13,6 @@ TurboReport_*.html
 *.bak
 Thumbs.db
 desktop.ini
+
+# build output
+dist/

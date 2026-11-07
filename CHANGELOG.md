@@ -1,5 +1,10 @@
 # Changelog
 
+## v11.1
+
+- Easy download for users: each release now has `TurboOptimizer-v11.1.zip` with one launcher (`Start Turbo Optimizer.bat`), a short `README.txt` and an `app` folder. No repository files to sort through.
+- The package is built and attached to the release automatically when a version tag is pushed.
+
 ## v11.0
 
 First public release.

@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '11.0'
+$script:Version    = '11.1'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'

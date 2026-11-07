@@ -51,9 +51,11 @@ It asks before closing any program. If you say no, that step is skipped.
 
 ## Quick start
 
-1. Download the ZIP from the [latest release](https://github.com/Ebnhussein/TurboOpt/releases/latest), or clone: `git clone https://github.com/Ebnhussein/TurboOpt.git`
-2. Double-click `TurboOptimizer.bat`.
+1. Go to the [latest release](https://github.com/Ebnhussein/TurboOpt/releases/latest) and download **`TurboOptimizer-v….zip`** (under Assets). Do not use "Source code": that is the developer copy.
+2. Unzip it and double-click **`Start Turbo Optimizer.bat`**. That is the only file you need to open.
 3. Pick the browser version, the window version, or stay in the console.
+
+Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `TurboOptimizer.bat`.
 
 Tick **Dry run** first to see what would happen without changing anything.
 
