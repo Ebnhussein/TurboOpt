@@ -4,7 +4,7 @@
 
 Herramienta de código abierto en PowerShell para **optimizar, limpiar y reparar Windows**. Analiza tu PC, explica qué falla y arregla solo lo que elijas: arranque lento, disco C: lleno, errores de Windows Update, archivos DLL que faltan, problemas de controladores, Wi-Fi y Bluetooth que se cortan. Cada cambio queda registrado y puedes **deshacerlo**.
 
-Sin instalador, sin anuncios, sin telemetría. Ejecuta un archivo `.bat` y elige entre menú de consola, ventana moderna en el navegador o ventana clásica de Windows.
+Sin instalador, sin anuncios, sin telemetría. Pega una línea en PowerShell: descarga la herramienta, la abre en una ventana moderna del navegador y te pregunta qué quieres.
 
 ![Resultados del Doctor](ui-doctor-ar.png)
 
@@ -28,8 +28,8 @@ Sin instalador, sin anuncios, sin telemetría. Ejecuta un archivo `.bat` y elige
 
 ## Inicio rápido
 
-1. Descarga el ZIP de la [última versión](https://github.com/Ebnhussein/TurboOpt/releases/latest).
-2. Ejecuta `TurboOptimizer.bat`.
-3. Elige navegador, ventana o consola. Prueba primero el **modo de prueba** (no cambia nada).
+```powershell
+irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+```
 
-Requisitos: Windows 10 (1809 o superior) o Windows 11, y permisos de administrador. Licencia: MIT.
+Abre PowerShell y pega esta línea. Descarga la herramienta, la abre en el navegador y te pregunta qué quieres (incluido el cuidado automático: limpieza semanal o vigilancia diaria). Prueba primero el **modo de prueba**.

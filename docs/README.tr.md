@@ -4,7 +4,7 @@
 
 PowerShell ile yazılmış açık kaynaklı bir araç: **Windows'u optimize eder, temizler ve onarır**. Bilgisayarınızı tarar, sorunu açıklar ve yalnızca seçtiğinizi düzeltir: yavaş açılış, dolu C: sürücüsü, Windows Update hataları, eksik DLL dosyaları, sürücü sorunları, sürekli kopan Wi-Fi ve Bluetooth. Her değişiklik kaydedilir ve **geri alınabilir**.
 
-Kurulum yok, reklam yok, telemetri yok. Bir `.bat` dosyası çalıştırın ve seçin: konsol menüsü, modern tarayıcı penceresi veya klasik Windows penceresi.
+Kurulum yok, reklam yok, telemetri yok. PowerShell'e tek satır yapıştırın: araç indirilir, tarayıcıda modern bir pencerede açılır ve ne istediğinizi sorar.
 
 ![Doktor sonuçları](ui-doctor-ar.png)
 
@@ -28,8 +28,8 @@ Kurulum yok, reklam yok, telemetri yok. Bir `.bat` dosyası çalıştırın ve s
 
 ## Hızlı başlangıç
 
-1. [Son sürümden](https://github.com/Ebnhussein/TurboOpt/releases/latest) ZIP dosyasını indirin.
-2. `TurboOptimizer.bat` dosyasını çalıştırın.
-3. Tarayıcı, pencere veya konsolu seçin. Önce **deneme modunu** deneyin (hiçbir şeyi değiştirmez).
+```powershell
+irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+```
 
-Gereksinimler: Windows 10 (1809 veya üzeri) ya da Windows 11 ve yönetici hakları. Lisans: MIT.
+PowerShell'i açın ve bu satırı yapıştırın. Araç indirilir, tarayıcıda açılır ve ne istediğinizi sorar (otomatik bakım dahil: haftalık temizlik veya günlük izleme). Önce **deneme modunu** deneyin.

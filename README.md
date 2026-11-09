@@ -10,7 +10,11 @@
 
 Turbo Optimizer is an open-source **Windows optimizer, system cleaner and repair tool** written in PowerShell. It scans your PC, explains what is wrong, and fixes only what you choose: slow startup, full C: drive, Windows Update errors, missing DLL files, driver problems, Wi-Fi and Bluetooth that keep dropping. Every change is recorded, so you can **undo it**.
 
-No installer, no ads, no telemetry. Run a `.bat` file and pick a console menu, a modern browser window, or a classic Windows window.
+No installer, no ads, no telemetry. Paste one line into PowerShell: it downloads, opens a modern app window in your browser, and asks what you want.
+
+```powershell
+irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+```
 
 ![Turbo Optimizer browser version](docs/ui-home.png)
 
@@ -30,34 +34,33 @@ The Doctor in Arabic (right-to-left layout, 10 languages in total):
 - **Update and repair.** App updates through winget, SFC and DISM, driver backup and restore.
 - **Network fixes.** Wi-Fi and Bluetooth hang fixes, DNS speed test and switch, hosts file check, Wi-Fi channel check.
 - **Security checks.** Firewall, SMBv1, Remote Desktop, UAC, and a reversible Windows Defender off / on / update.
-- **Safety first.** Dry-run mode, restore point, an undo journal for every change, a daily health check and weekly maintenance as scheduled tasks.
+- **Safety first.** Dry-run mode, restore point, an undo journal for every change.
+- **Automatic care (optional).** Weekly cleanup, or a daily watch that fixes only safe, reversible problems (temp files, clock sync, DNS cache, Defender definitions, stopped services) and sends a notification when something serious needs you.
 
 It asks before closing any program. If you say no, that step is skipped.
 
-## Three ways to run it
+## How it works
 
-| Launcher | What you get |
-|---|---|
-| `TurboOptimizer.bat` | Console with a numbered menu. On start it offers to open one of the graphical versions. |
-| `TurboOptimizerWeb.bat` | Browser version: a local app window (Edge, or Chrome if Edge is missing). 10 languages, right-to-left support. |
-| `TurboOptimizerUI.bat` | Classic Windows (WinForms) window. Same languages. |
+1. Open **PowerShell** (Start menu, type `powershell`) and paste the line above.
+2. It downloads the latest release (checksum verified), keeps it in `%LOCALAPPDATA%\TurboOptimizer`, and opens the app in your browser (Edge, or Chrome if Edge is missing). Windows asks once for administrator rights.
+3. On the first run it asks whether you want **automatic care**: *Not now*, *Weekly cleanup*, or *Watch and fix* (a daily check that fixes only safe problems and notifies you about the rest). You can change it any time in Safety and tools.
+
+Run the same line again to update; your settings and undo history are kept. Prefer an offline copy? Download `TurboOptimizer-v….zip` from [Releases](https://github.com/Ebnhussein/TurboOpt/releases/latest), unzip it, and double-click `Start Turbo Optimizer.bat` (a console menu is also available there).
 
 ## Requirements
 
 - Windows 10 version 1809 or newer, or Windows 11
 - Windows PowerShell 5.1 (included with Windows)
 - Administrator rights (the tool asks for them itself)
-- For the browser version: Microsoft Edge or Google Chrome
+- Microsoft Edge or Google Chrome (for the app window)
 
 ## Quick start
 
-1. Go to the [latest release](https://github.com/Ebnhussein/TurboOpt/releases/latest) and download **`TurboOptimizer-v….zip`** (under Assets). Do not use "Source code": that is the developer copy.
-2. Unzip it and double-click **`Start Turbo Optimizer.bat`**. That is the only file you need to open.
-3. Pick the browser version, the window version, or stay in the console.
+```powershell
+irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+```
 
-Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `TurboOptimizer.bat`.
-
-Tick **Dry run** first to see what would happen without changing anything.
+Switch on **Dry run** at the top of the app first to see what would happen without changing anything. Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `TurboOptimizer.bat`.
 
 ## Common problems it helps with
 
@@ -106,9 +109,9 @@ English, Arabic, Spanish, French, German, Portuguese, Russian, Chinese (Simplifi
 
 | File | Purpose |
 |---|---|
+| `install.ps1` | One-line installer |
 | `TurboOptimizer.ps1` | The engine and the console menu |
 | `TurboOptimizerWeb.ps1`, `TurboWeb.html` | Browser version (local server and page) |
-| `TurboOptimizerUI.ps1` | Windows window version |
 | `TurboUI_strings.json` | Translations |
 | `config.ini` | Lists and options |
 
@@ -121,7 +124,11 @@ powershell -ExecutionPolicy Bypass -File .\TurboOptimizer.ps1 -SelfTest
 powershell -ExecutionPolicy Bypass -File .\TurboOptimizerWeb.ps1 -Test -TestAll
 ```
 
-Both run in dry-run mode.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\TurboOptimizer.ps1 -Monitor -DryRun
+```
+
+All run in dry-run mode.
 
 ## Contributing
 

@@ -17,7 +17,7 @@ $stage = Join-Path $dist "stage\TurboOptimizer-$Tag"
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $stage 'app') | Out-Null
 
-$appFiles = 'TurboOptimizer.ps1', 'TurboOptimizerWeb.ps1', 'TurboOptimizerUI.ps1', 'TurboWeb.html', 'TurboUI_strings.json', 'config.ini'
+$appFiles = 'TurboOptimizer.ps1', 'TurboOptimizerWeb.ps1', 'TurboWeb.html', 'TurboUI_strings.json', 'config.ini'
 foreach ($f in $appFiles) { Copy-Item (Join-Path $root $f) (Join-Path $stage 'app') }
 Copy-Item (Join-Path $root 'LICENSE') $stage
 
@@ -39,10 +39,10 @@ https://github.com/Ebnhussein/TurboOpt
 HOW TO USE
 1. Unzip this folder anywhere (not inside the ZIP window).
 2. Double-click "Start Turbo Optimizer.bat". Windows asks for administrator rights.
-3. Choose how to work: browser window (modern, 10 languages), classic window, or this console.
+3. The app opens in your browser. On the first run it asks if you want automatic care (weekly cleanup, or a daily watch that fixes safe problems).
 
 FIRST TIME
-Tick "Dry run" (browser and window versions) or press D (console). The tool then only
+Switch on "Dry run" at the top of the app (or press D in the console). The tool then only
 describes what it would do and changes nothing. Try the Doctor first.
 
 SAFE TO TRY
@@ -78,7 +78,9 @@ $zip.Dispose(); $fs.Dispose()
 $cl = Get-Content (Join-Path $root 'CHANGELOG.md') -Raw
 $m = [regex]::Match($cl, "(?ms)^## v$([regex]::Escape($ver))\s*\r?\n(.*?)(?=^## v|\z)")
 $body = if ($m.Success) { $m.Groups[1].Value.Trim() } else { 'See CHANGELOG.md.' }
-$notes = "**Download ``TurboOptimizer-$Tag.zip`` below** (not the 'Source code' files), unzip it, and double-click ``Start Turbo Optimizer.bat``. Windows 10 (1809+) or Windows 11. Tick Dry run first to change nothing.`n`n$body"
+$notes = "**Easiest:** open PowerShell and paste ``irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex``.`n`n**Or download ``TurboOptimizer-$Tag.zip`` below** (not the 'Source code' files), unzip it, and double-click ``Start Turbo Optimizer.bat``. Windows 10 (1809+) or Windows 11. Switch on Dry run first to change nothing.`n`n$body"
 [System.IO.File]::WriteAllText((Join-Path $dist 'notes.md'), $notes, (New-Object System.Text.UTF8Encoding($false)))
+$hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+[System.IO.File]::WriteAllText("$zipPath.sha256", "$hash  TurboOptimizer-$Tag.zip`n", [System.Text.Encoding]::ASCII)
 Remove-Item (Join-Path $dist 'stage') -Recurse -Force
 "built $zipPath ({0:N0} KB)" -f ((Get-Item $zipPath).Length / 1KB)

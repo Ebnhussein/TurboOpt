@@ -176,6 +176,13 @@ table.lst .cmd{color:var(--muted);font-size:12.5px;direction:ltr;unicode-bidi:pl
 .modal input[type=text]{width:100%;min-height:44px;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0 12px;direction:ltr}
 .xbtn{position:absolute;top:10px;inset-inline-end:10px;width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:var(--muted);display:grid;place-items:center}
 .xbtn:hover{background:var(--surface2);color:var(--text)}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-radius:12px;cursor:pointer;margin-bottom:8px;min-height:44px}
+.opt:hover{border-color:var(--accent)}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.opt input{margin-top:3px}
+.opt b{display:block}
+.opt .od{display:block;color:var(--muted);font-size:12.5px;margin-top:1px}
+.modal .note{color:var(--muted);font-size:12.5px;padding:0 24px}
 .radios label{display:flex;gap:12px;align-items:center;min-height:44px;cursor:pointer}
 .radios input{width:20px;height:20px;accent-color:var(--accent)}
 .toast{position:fixed;inset-inline-end:20px;bottom:20px;background:var(--bad);color:#fff;padding:12px 18px;border-radius:12px;display:none;z-index:30;font-weight:600}
@@ -220,7 +227,7 @@ const P = {
   sliders:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4', back:'M15 6l-6 6 6 6', wrench:'M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 3 11.4 11.4 3z'
 };
 function icon(n,cls){return '<svg class="i '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true"><path d="'+(P[n]||P.info)+'"/></svg>';}
-const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_restore:'safety',act_revert:'back'};
+const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_auto:'update',act_restore:'safety',act_revert:'back'};
 const COLORS = {Black:'#cccccc',DarkBlue:'#5c8dff',DarkGreen:'#3fb950',DarkCyan:'#39c5cf',DarkRed:'#ff6b6b',DarkMagenta:'#d2a8ff',DarkYellow:'#d29922',Gray:'#cccccc',DarkGray:'#8b949e',Blue:'#79c0ff',Green:'#56d364',Cyan:'#56d4dd',Red:'#ff7b72',Magenta:'#d2a8ff',Yellow:'#e3b341',White:'#ffffff'};
 function T(k){const l=BOOT.S[lang];if(l&&l[k]!==undefined)return l[k];return BOOT.S.en[k]!==undefined?BOOT.S.en[k]:k;}
 function fmt(s,...a){return s.replace(/\{(\d+)\}/g,(m,i)=>a[i]);}
@@ -477,6 +484,22 @@ async function handlePrompt(p){
   else v=await inputModal(p.t,p.def);
   try{ await api('/api/answer',{id:p.id,value:v}); }catch(e){ toast(e.message); }
 }
+async function autoModal(first){
+  let cur='off'; try{ const r=await api('/api/auto'); cur=r.mode; }catch(e){}
+  const opts=[['off','auto_off','auto_off_d'],['weekly','auto_weekly','auto_weekly_d'],['monitor','auto_monitor','auto_monitor_d']];
+  const box=el('div');
+  for(const [v,t,d] of opts){
+    const r=el('input',{type:'radio',name:'auto',value:v}); if(v===cur) r.checked=true;
+    const txt=el('span',null,el('b',{text:T(t)}),el('span',{class:'od',text:T(d)}));
+    box.append(el('label',{class:'opt'},r,txt));
+  }
+  const ok=el('button',{class:'btn primary',text:T('auto_save')}), cn=el('button',{class:'btn',text:T('dlg_cancel')});
+  const leave=async()=>{ hideModal(); if(first){ try{ await api('/api/auto',{mode:'skip'}); }catch(e){} } };
+  cn.onclick=leave;
+  ok.onclick=async()=>{ const mode=box.querySelector('input:checked').value; hideModal(); try{ await api('/api/auto',{mode,dry:$('dry').checked}); }catch(e){ toast(e.status===409?T('working'):e.message); } poll(); };
+  showModal(el('div',null,el('h2',{text:first?T('auto_q'):T('act_auto')}),el('div',{class:'mb'},box),el('div',{class:'note',text:T('auto_note')}),el('div',{class:'mf'},cn,ok)),leave);
+  ok.focus();
+}
 function dnsModal(){
   const opts=['Cloudflare (1.1.1.1)','Google (8.8.8.8)','Quad9 (9.9.9.9)',T('dlg_auto')];
   const box=el('div',{class:'radios'});
@@ -491,6 +514,7 @@ function dnsModal(){
 async function runAction(a){
   if(busy||modalOpen) return;
   if(a.special==='dns'){ dnsModal(); return; }
+  if(a.special==='auto'){ autoModal(false); return; }
   try{ await api('/api/run',{id:a.k,dry:$('dry').checked,lang}); }catch(e){ toast(e.status===409?T('working'):e.message); }
   poll();
 }
@@ -524,6 +548,7 @@ if(location.hash==='#demo') setTimeout(()=>openResults({id:-1,k:'findings',items
   {Id:'d5',Sev:'MED',Title:'The PC shut down without a clean shutdown',Detail:'A previous shutdown was not clean.',Fix:''},
   {Id:'d6',Sev:'INFO',Title:'Recurring error: Example-Service (ID 1000) x4',Detail:'The event log shows a repeating error.',Fix:''}]}),1500);
 applyLang(); poll(); setInterval(poll,300);
+if(!DEMO) setTimeout(async()=>{ try{ const r=await api('/api/auto'); if(!r.asked&&!modalOpen) autoModal(true); }catch(e){} },1800);
 </script>
 </body>
 </html>

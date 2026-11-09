@@ -6,11 +6,11 @@
   Settings live in config.ini next to this script. Every change is recorded in turbo_undo.json (menu option 20 reverts).
 #>
 [CmdletBinding()]
-param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [switch]$Maintain, [switch]$AsLibrary, [switch]$Console)
+param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [switch]$Maintain, [switch]$AsLibrary, [switch]$Console, [switch]$Browser, [switch]$Monitor)
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '11.4'
+$script:Version    = '12.0'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -39,6 +39,8 @@ if (-not $SelfTest -and -not $AsLibrary -and -not (Test-Admin)) {
     Write-Host 'Requesting administrator rights...'
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $PSCommandPath))
     if ($DryRun) { $argList += '-DryRun' }
+    if ($Browser) { $argList += '-Browser' }
+    if ($Console) { $argList += '-Console' }
     Start-Process powershell -Verb RunAs -ArgumentList $argList
     exit
 }
@@ -2512,25 +2514,107 @@ function Register-MaintenanceTask {
         Register-ScheduledTask -TaskName 'TurboOptimizer Weekly Maintenance' -Action $act -Trigger $trg -Principal $prin -Settings $set -Force -ErrorAction Stop | Out-Null
     }
 }
+# ---- automatic care: off / weekly cleanup / watch and fix ----
+$script:PrefsFile = Join-Path $script:Dir 'turbo_prefs.json'
+$script:MonitorFile = Join-Path $script:Dir 'turbo_monitor.json'
+$script:TaskWeekly = 'TurboOptimizer Weekly Maintenance'
+$script:TaskMonitor = 'TurboOptimizer Monitor'
+$script:TaskHealth = 'TurboOptimizer Health Check'
+function Get-Prefs {
+    $h = @{}
+    if (Test-Path $script:PrefsFile) { try { $o = Get-Content $script:PrefsFile -Raw | ConvertFrom-Json; foreach ($p in $o.PSObject.Properties) { $h[$p.Name] = $p.Value } } catch {} }
+    return $h
+}
+function Save-Prefs($h) {
+    if ($script:DryRun) { return }
+    try { $h | ConvertTo-Json | Set-Content -Path $script:PrefsFile -Encoding UTF8 } catch { Add-ErrorRecord 'Save preferences' $_ }
+}
+function Get-AutoMode {
+    if (Get-ScheduledTask -TaskName $script:TaskMonitor -ErrorAction SilentlyContinue) { return 'monitor' }
+    if (Get-ScheduledTask -TaskName $script:TaskWeekly -ErrorAction SilentlyContinue) { return 'weekly' }
+    return 'off'
+}
+function Register-MonitorTask {
+    Invoke-Act 'Schedule the daily watch (checks this PC, fixes safe problems by itself, tells you about the rest)' {
+        $act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Monitor' -f (Join-Path $script:Dir 'TurboOptimizer.ps1'))
+        $logon = New-ScheduledTaskTrigger -AtLogOn
+        $logon.Delay = 'PT10M'
+        $trg = @((New-ScheduledTaskTrigger -Daily -At 1pm), $logon)
+        $prin = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+        $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+        Register-ScheduledTask -TaskName $script:TaskMonitor -Action $act -Trigger $trg -Principal $prin -Settings $set -Force -ErrorAction Stop | Out-Null
+    }
+}
+# Sets what the tool does on its own. Mode: off, weekly (clean every week) or monitor (daily check + safe fixes + a notification).
+function Set-AutoCare([string]$Mode) {
+    if ($Mode -notin 'off', 'weekly', 'monitor') { Say "  Unknown mode: $Mode" Red; return }
+    foreach ($t in $script:TaskWeekly, $script:TaskMonitor, $script:TaskHealth) {
+        if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) { Invoke-Act "Remove the old task $t" { Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction Stop } }
+    }
+    if ($Mode -eq 'weekly') { Register-MaintenanceTask }
+    if ($Mode -eq 'monitor') { Register-MonitorTask }
+    if ($script:DryRun) { Say '  Preview mode is on: nothing was changed.' DarkYellow; return }
+    $p = Get-Prefs
+    $p['Asked'] = $true
+    $p['AutoMode'] = $Mode
+    Save-Prefs $p
+    $txt = @{ off = 'Automatic care is off.'; weekly = 'Weekly cleanup is on (every Sunday, asks nothing, closes nothing).'; monitor = 'Watch and fix is on: a daily check that fixes safe problems and tells you about the rest.' }
+    Say ('  ' + $txt[$Mode]) Green
+    Write-Log "Automatic care set to $Mode"
+}
+function Send-Toast([string]$Title, [string]$Text) {
+    try {
+        [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+        [void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+        $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+        $t1 = [Security.SecurityElement]::Escape($Title); $t2 = [Security.SecurityElement]::Escape($Text)
+        $xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$t1</text><text>$t2</text></binding></visual></toast>")
+        $toast = New-Object Windows.UI.Notifications.ToastNotification $xml
+        [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe').Show($toast)
+    } catch { Write-Log "Notification failed: $($_.Exception.Message)" }
+}
+# The daily watch: scan, fix only the safe and reversible kinds of problems, notify about the rest.
+function Invoke-MonitorRun {
+    $script:Unattended = $true
+    $script:Plat = Get-Platform
+    Write-Log 'Monitor run started'
+    $safe = @('Clean', 'ResyncTime', 'FlushDns', 'DefenderSigs', 'ServiceStart')
+    Invoke-Doctor -ScanOnly
+    $fixed = @(); $attention = @()
+    foreach ($f in @($script:Findings)) {
+        if ($f.Sev -eq 'INFO') { continue }
+        if ($f.Fix -and ($safe -contains $f.Fix)) {
+            $before = $script:Problems.Count
+            try {
+                if ($f.Fix -eq 'Clean') { Invoke-Clean -Auto } else { Invoke-Fix $f }
+                if ($script:Problems.Count -eq $before) { $fixed += $f.Title; if ($f.AckKey) { Set-Ack $f.AckKey } } else { $attention += $f }
+            } catch { $attention += $f }
+        } else { $attention += $f }
+    }
+    $serious = @($attention | Where-Object { $_.Sev -eq 'HIGH' })
+    $sig = (@($serious | ForEach-Object { $_.Title }) | Sort-Object) -join '|'
+    $last = $null
+    if (Test-Path $script:MonitorFile) { try { $last = Get-Content $script:MonitorFile -Raw | ConvertFrom-Json } catch {} }
+    if (-not $script:DryRun) { try { @{ Time = (Get-Date).ToString('o'); Fixed = $fixed; Attention = @($attention | ForEach-Object { $_.Title }); Signature = $sig } | ConvertTo-Json | Set-Content -Path $script:MonitorFile -Encoding UTF8 } catch {} }
+    $msg = @()
+    if ($fixed.Count -gt 0) { $msg += ('Fixed {0} problem(s) by itself.' -f $fixed.Count) }
+    if ($serious.Count -gt 0 -and (-not $last -or $last.Signature -ne $sig)) { $msg += ('{0} serious problem(s) need you: open Turbo Optimizer and run the Doctor.' -f $serious.Count) }
+    if ($msg.Count -gt 0 -and -not $script:DryRun) { Send-Toast 'Turbo Optimizer' ($msg -join ' ') }
+    Write-Log ("Monitor run finished: fixed={0} attention={1}" -f $fixed.Count, $attention.Count)
+}
 function Invoke-AutomationMenu {
     if ($script:AutoYes) { return }
-    while ($true) {
-        Say ''
-        Say '[ AUTOMATION ]' Cyan
-        foreach ($t in 'TurboOptimizer Health Check', 'TurboOptimizer Weekly Maintenance') {
-            $st = Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
-            if ($st) { Say "  [on ] $t" Green } else { Say "  [off] $t" DarkGray }
-        }
-        Say '  A. Daily background health check (scan only, changes nothing)'
-        Say '  B. Weekly safe maintenance (cleans temp files, scans, asks nothing, never closes apps)'
-        Say '  C. Remove both'
-        Say '  0. Back'
-        switch ((Read-Host '>> Select').Trim().ToUpper()) {
-            'A' { Register-HealthTask }
-            'B' { Register-MaintenanceTask }
-            'C' { foreach ($t in 'TurboOptimizer Health Check', 'TurboOptimizer Weekly Maintenance') { if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) { Invoke-Act "Remove $t" { Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction Stop } } } }
-            '0' { return }
-        }
+    Say ''
+    Say '[ AUTOMATIC CARE ]' Cyan
+    Say ("  Now: {0}" -f (Get-AutoMode)) White
+    Say '  1. Off - I run the tool myself'
+    Say '  2. Weekly cleanup - cleans temporary files every week, asks nothing, closes nothing'
+    Say '  3. Watch and fix - checks this PC every day, fixes safe problems by itself, notifies you about the rest'
+    Say '  0. Back'
+    switch ((Read-Host '>> Select').Trim()) {
+        '1' { Set-AutoCare 'off' }
+        '2' { Set-AutoCare 'weekly' }
+        '3' { Set-AutoCare 'monitor' }
     }
 }
 function Get-Ar([int[]]$Codes) { return (-join ($Codes | ForEach-Object { [string][char]$_ })) }
@@ -2706,7 +2790,7 @@ $script:MenuDef = @(
     @{ G = 'SAFETY AND TOOLS'; Items = @(
         @{ N = '19'; T = 'Create restore point';          P = 'Restore point';       A = { Invoke-RestorePoint } },
         @{ N = '20'; T = 'Revert recorded changes';       P = 'Revert';              A = { Invoke-Revert } },
-        @{ N = '21'; T = 'Automation (scheduled checks)'; P = 'Automation';          A = { Invoke-AutomationMenu } }) }
+        @{ N = '21'; T = 'Automatic care (weekly / watch)'; P = 'Automation';          A = { Invoke-AutomationMenu } }) }
 )
 function Show-Menu {
     Clear-Host
@@ -2740,9 +2824,9 @@ function Show-Menu {
     Write-Host '  ' -NoNewline
     $dryTxt = 'Dry run: OFF'
     if ($script:DryRun) { $dryTxt = 'Dry run: ON' }
-    $hasUi = (Test-Path (Join-Path $script:Dir 'TurboOptimizerWeb.ps1')) -or (Test-Path (Join-Path $script:Dir 'TurboOptimizerUI.ps1'))
+    $hasUi = Test-Path (Join-Path $script:Dir 'TurboOptimizerWeb.ps1')
     $keys = @(@('D', $dryTxt), @('L', 'Log'), @('R', 'Problems'), @('C', 'Config'))
-    if ($hasUi) { $keys += , @('U', 'Open the UI') }
+    if ($hasUi) { $keys += , @('U', 'Open in browser') }
     $keys += , @('0', 'Exit')
     foreach ($k in $keys) {
         Write-Host ('[{0}]' -f $k[0]) -NoNewline -ForegroundColor Cyan
@@ -2750,38 +2834,27 @@ function Show-Menu {
     }
     Write-Host ''
 }
-# Opens the browser or window version in its own process.
+# Opens the browser version in its own process.
 function Start-Ui([string]$Kind) {
     $path = Join-Path $script:Dir 'TurboOptimizerWeb.ps1'
-    $args2 = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File')
-    if ($Kind -eq 'ui') { $path = Join-Path $script:Dir 'TurboOptimizerUI.ps1'; $args2 = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-WindowStyle', 'Hidden', '-File') }
     if (-not (Test-Path $path)) { Say "  Missing file: $path" Red; return $false }
-    Start-Process powershell -ArgumentList ($args2 + ('"{0}"' -f $path))
+    Start-Process powershell -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ('"{0}"' -f $path))
     return $true
 }
-# First screen: browser version, window version, or stay in the console. Returns 'console' / 'web' / 'ui'.
+# First screen: browser (default) or stay in the console. Returns 'console' or 'web'.
 function Show-Launcher {
     Show-Page 'Start'
-    $web = Test-Path (Join-Path $script:Dir 'TurboOptimizerWeb.ps1')
-    $ui = Test-Path (Join-Path $script:Dir 'TurboOptimizerUI.ps1')
-    if (-not $web -and -not $ui) { return 'console' }
+    if (-not (Test-Path (Join-Path $script:Dir 'TurboOptimizerWeb.ps1'))) { return 'console' }
     Say '  How do you want to work?' White
     Write-Host ''
-    if ($web) {
-        Write-Host '    1  ' -NoNewline -ForegroundColor Cyan; Write-Host 'Browser version   ' -NoNewline -ForegroundColor White
-        Write-Host 'modern app window, many languages (recommended)' -ForegroundColor DarkGray
-    }
-    if ($ui) {
-        Write-Host '    2  ' -NoNewline -ForegroundColor Cyan; Write-Host 'Window version    ' -NoNewline -ForegroundColor White
-        Write-Host 'classic Windows window' -ForegroundColor DarkGray
-    }
-    Write-Host '    3  ' -NoNewline -ForegroundColor Cyan; Write-Host 'This console      ' -NoNewline -ForegroundColor White
+    Write-Host '    1  ' -NoNewline -ForegroundColor Cyan; Write-Host 'Browser   ' -NoNewline -ForegroundColor White
+    Write-Host 'a modern app window with 10 languages (recommended)' -ForegroundColor DarkGray
+    Write-Host '    2  ' -NoNewline -ForegroundColor Cyan; Write-Host 'Console   ' -NoNewline -ForegroundColor White
     Write-Host 'numbered menu, stay in this window' -ForegroundColor DarkGray
     Write-Host ''
-    $c = (Read-Host '  Select [1-3, Enter = 3]').Trim()
-    if ($c -eq '1' -and $web) { return 'web' }
-    if ($c -eq '2' -and $ui) { return 'ui' }
-    return 'console'
+    $c = (Read-Host '  Select [1-2, Enter = 1]').Trim()
+    if ($c -eq '2') { return 'console' }
+    return 'web'
 }
 
 function Start-SelfTest {
@@ -2836,6 +2909,7 @@ if ($Doctor) {
     Invoke-Doctor -ScanOnly:$ScanOnly
     exit 0
 }
+if ($Monitor) { Invoke-MonitorRun; exit 0 }
 if ($Maintain) {
     # Weekly safe maintenance: clean temp files and caches that are not in use, then scan. Never asks, never closes anything.
     $script:Unattended = $true
@@ -2846,6 +2920,7 @@ if ($Maintain) {
     Write-Log 'Weekly maintenance finished'
     exit 0
 }
+if ($Browser) { if (Start-Ui 'web') { exit 0 } }     # started by the installer: open the browser right away
 try { $script:Sys = Get-SysInfo }
 catch {
     Add-ErrorRecord 'Read system information' $_

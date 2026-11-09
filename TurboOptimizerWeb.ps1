@@ -34,7 +34,7 @@ $S = [System.IO.File]::ReadAllText($stringsPath, [System.Text.Encoding]::UTF8) |
 $script:Lang = 'en'
 if (Test-Path $prefPath) { try { $p = Get-Content $prefPath -Raw | ConvertFrom-Json; if ($p.Lang -and $S.PSObject.Properties[$p.Lang]) { $script:Lang = [string]$p.Lang } } catch {} }
 
-# ---------------------------------------------------------------- engine (same as the window version)
+# ---------------------------------------------------------------- engine (the same engine as the console)
 $sync = [hashtable]::Synchronized(@{})
 $sync.Q = New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'
 $sync.Evt = New-Object System.Threading.ManualResetEventSlim($false)
@@ -165,9 +165,7 @@ $Categories = @(
     @{ Id = 'safety'; K = 'cat_safety'; Actions = @(
         @{ K = 'act_restore'; D = 'd_restore'; Cmd = 'Invoke-RestorePoint' },
         @{ K = 'act_revert'; D = 'd_revert'; Cmd = 'Invoke-Revert' },
-        @{ K = 'act_sched_health'; D = 'd_sched_health'; Cmd = 'Register-HealthTask' },
-        @{ K = 'act_sched_weekly'; D = 'd_sched_weekly'; Cmd = 'Register-MaintenanceTask' },
-        @{ K = 'act_sched_remove'; D = 'd_sched_remove'; Cmd = "foreach (`$t in 'TurboOptimizer Health Check', 'TurboOptimizer Weekly Maintenance') { if (Get-ScheduledTask -TaskName `$t -ErrorAction SilentlyContinue) { Invoke-Act (""Remove `$t"") { Unregister-ScheduledTask -TaskName `$t -Confirm:`$false -ErrorAction Stop } } }" },
+        @{ K = 'act_auto'; D = 'd_auto'; Special = 'auto' },
         @{ K = 'act_open_log'; D = 'd_open_log'; Special = 'open_log' },
         @{ K = 'act_open_problems'; D = 'd_open_problems'; Special = 'open_problems' },
         @{ K = 'act_open_config'; D = 'd_open_config'; Special = 'open_config' }) }
@@ -437,6 +435,25 @@ function Handle-Request($ctx) {
                 $sync.Answer = $false; $script:Prompt = $null; $sync.Evt.Set()
                 Add-Event @{ k = 'stopped' }
             }
+            Send-Json $ctx @{ ok = $true }
+        }
+        '/api/auto' {
+            $pf = Join-Path $here 'turbo_prefs.json'
+            $prefs = @{}
+            if (Test-Path $pf) { try { $o = Get-Content $pf -Raw | ConvertFrom-Json; foreach ($pp in $o.PSObject.Properties) { $prefs[$pp.Name] = $pp.Value } } catch {} }
+            if ($req.HttpMethod -eq 'GET') {
+                $mode = 'off'
+                if (Get-ScheduledTask -TaskName 'TurboOptimizer Monitor' -ErrorAction SilentlyContinue) { $mode = 'monitor' }
+                elseif (Get-ScheduledTask -TaskName 'TurboOptimizer Weekly Maintenance' -ErrorAction SilentlyContinue) { $mode = 'weekly' }
+                Send-Json $ctx @{ mode = $mode; asked = [bool]$prefs['Asked'] }
+                return
+            }
+            $m = [string]$body.mode
+            if ($m -eq 'skip') { $prefs['Asked'] = $true; try { $prefs | ConvertTo-Json | Set-Content -Path $pf -Encoding UTF8 } catch {}; Send-Json $ctx @{ ok = $true }; return }
+            if ($m -notin 'off', 'weekly', 'monitor') { Send-Json $ctx @{ error = 'bad request' } 400; return }
+            if ($script:Busy) { Send-Json $ctx @{ error = 'busy' } 409; return }
+            $script:LastDry = ($body.dry -eq $true)
+            Start-Action ("Set-AutoCare '" + $m + "'") (Get-Text 'act_auto') $script:LastDry
             Send-Json $ctx @{ ok = $true }
         }
         '/api/lang' {

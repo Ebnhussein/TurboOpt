@@ -156,7 +156,18 @@
                "preview_on":  "Preview mode is on: nothing will be changed.",
                "more_info":  "Advice only ({0})",
                "select_all":  "Select all",
-               "select_none":  "Clear selection"
+               "select_none":  "Clear selection",
+               "act_auto":  "Automatic care",
+               "d_auto":  "Weekly cleanup, or a daily watch that fixes safe problems.",
+               "auto_q":  "Keep your PC healthy automatically?",
+               "auto_off":  "Not now",
+               "auto_off_d":  "I will run the tool myself when I want.",
+               "auto_weekly":  "Weekly cleanup",
+               "auto_weekly_d":  "Cleans temporary files once a week. Asks nothing and closes nothing.",
+               "auto_monitor":  "Watch and fix",
+               "auto_monitor_d":  "Checks your PC every day, fixes safe problems by itself, and tells you if something needs you.",
+               "auto_save":  "Save",
+               "auto_note":  "You can change this any time in Safety and tools."
            },
     "ar":  {
                "_name":  "العربية",
@@ -315,7 +326,18 @@
                "preview_on":  "وضع التجربة شغّال: مفيش حاجة هتتغير.",
                "more_info":  "نصائح فقط ({0})",
                "select_all":  "تحديد الكل",
-               "select_none":  "إلغاء التحديد"
+               "select_none":  "إلغاء التحديد",
+               "act_auto":  "العناية التلقائية",
+               "d_auto":  "تنظيف أسبوعي، أو مراقبة يومية تصلّح المشاكل الآمنة.",
+               "auto_q":  "تحب الأداة تحافظ على جهازك تلقائياً؟",
+               "auto_off":  "مش دلوقتي",
+               "auto_off_d":  "هشغّل الأداة بنفسي وقت ما أحتاجها.",
+               "auto_weekly":  "تنظيف أسبوعي",
+               "auto_weekly_d":  "بينضّف الملفات المؤقتة مرة في الأسبوع. مش بيسأل ومش بيقفل أي برنامج.",
+               "auto_monitor":  "مراقبة وإصلاح",
+               "auto_monitor_d":  "بيفحص جهازك كل يوم، ويصلّح المشاكل الآمنة لوحده، وبيبلّغك لو في حاجة محتاجاك.",
+               "auto_save":  "حفظ",
+               "auto_note":  "تقدر تغيّر ده في أي وقت من السلامة والأدوات."
            },
     "es":  {
                "_name":  "Español",
@@ -474,7 +496,18 @@
                "preview_on":  "El modo de prueba está activado: no se cambiará nada.",
                "more_info":  "Solo consejos ({0})",
                "select_all":  "Seleccionar todo",
-               "select_none":  "Quitar selección"
+               "select_none":  "Quitar selección",
+               "act_auto":  "Cuidado automático",
+               "d_auto":  "Limpieza semanal o una vigilancia diaria que arregla los problemas seguros.",
+               "auto_q":  "¿Mantener tu PC sano automáticamente?",
+               "auto_off":  "Ahora no",
+               "auto_off_d":  "Ejecutaré la herramienta yo mismo cuando quiera.",
+               "auto_weekly":  "Limpieza semanal",
+               "auto_weekly_d":  "Limpia los temporales una vez por semana. No pregunta ni cierra nada.",
+               "auto_monitor":  "Vigilar y arreglar",
+               "auto_monitor_d":  "Revisa tu PC cada día, arregla solo los problemas seguros y te avisa si algo te necesita.",
+               "auto_save":  "Guardar",
+               "auto_note":  "Puedes cambiarlo cuando quieras en Seguridad y herramientas."
            },
     "fr":  {
                "_name":  "Français",
@@ -633,7 +666,18 @@
                "preview_on":  "Le mode test est activé : rien ne sera modifié.",
                "more_info":  "Conseils seulement ({0})",
                "select_all":  "Tout sélectionner",
-               "select_none":  "Tout désélectionner"
+               "select_none":  "Tout désélectionner",
+               "act_auto":  "Entretien automatique",
+               "d_auto":  "Nettoyage hebdomadaire, ou surveillance quotidienne qui corrige les problèmes sans risque.",
+               "auto_q":  "Garder votre PC en bonne santé automatiquement ?",
+               "auto_off":  "Pas maintenant",
+               "auto_off_d":  "Je lancerai l\u0027outil moi-même quand je veux.",
+               "auto_weekly":  "Nettoyage hebdomadaire",
+               "auto_weekly_d":  "Nettoie les fichiers temporaires une fois par semaine. Ne demande rien et ne ferme rien.",
+               "auto_monitor":  "Surveiller et corriger",
+               "auto_monitor_d":  "Vérifie votre PC chaque jour, corrige seul les problèmes sans risque et vous prévient si quelque chose demande votre attention.",
+               "auto_save":  "Enregistrer",
+               "auto_note":  "Vous pouvez le modifier à tout moment dans Sécurité et outils."
            },
     "de":  {
                "_name":  "Deutsch",
@@ -792,7 +836,18 @@
                "preview_on":  "Testlauf ist aktiv: Es wird nichts geändert.",
                "more_info":  "Nur Hinweise ({0})",
                "select_all":  "Alle auswählen",
-               "select_none":  "Auswahl aufheben"
+               "select_none":  "Auswahl aufheben",
+               "act_auto":  "Automatische Pflege",
+               "d_auto":  "Wöchentliche Bereinigung oder tägliche Überwachung, die unkritische Probleme behebt.",
+               "auto_q":  "Soll Ihr PC automatisch gesund bleiben?",
+               "auto_off":  "Jetzt nicht",
+               "auto_off_d":  "Ich starte das Werkzeug selbst, wenn ich möchte.",
+               "auto_weekly":  "Wöchentliche Bereinigung",
+               "auto_weekly_d":  "Bereinigt temporäre Dateien einmal pro Woche. Fragt nichts und schließt nichts.",
+               "auto_monitor":  "Überwachen und beheben",
+               "auto_monitor_d":  "Prüft Ihren PC täglich, behebt unkritische Probleme selbst und meldet sich, wenn etwas Ihre Aufmerksamkeit braucht.",
+               "auto_save":  "Speichern",
+               "auto_note":  "Sie können das jederzeit unter Sicherheit und Werkzeuge ändern."
            },
     "pt":  {
                "_name":  "Português",
@@ -951,7 +1006,18 @@
                "preview_on":  "O modo de teste está ativo: nada será alterado.",
                "more_info":  "Apenas dicas ({0})",
                "select_all":  "Selecionar tudo",
-               "select_none":  "Limpar seleção"
+               "select_none":  "Limpar seleção",
+               "act_auto":  "Cuidado automático",
+               "d_auto":  "Limpeza semanal ou uma vigilância diária que corrige problemas seguros.",
+               "auto_q":  "Manter o seu PC saudável automaticamente?",
+               "auto_off":  "Agora não",
+               "auto_off_d":  "Vou executar a ferramenta eu mesmo quando quiser.",
+               "auto_weekly":  "Limpeza semanal",
+               "auto_weekly_d":  "Limpa os temporários uma vez por semana. Não pergunta nem fecha nada.",
+               "auto_monitor":  "Vigiar e corrigir",
+               "auto_monitor_d":  "Verifica o seu PC todos os dias, corrige sozinho os problemas seguros e avisa se algo precisar de você.",
+               "auto_save":  "Salvar",
+               "auto_note":  "Você pode mudar isso a qualquer momento em Segurança e ferramentas."
            },
     "ru":  {
                "_name":  "Русский",
@@ -1110,7 +1176,18 @@
                "preview_on":  "Пробный режим включён: ничего не будет изменено.",
                "more_info":  "Только советы ({0})",
                "select_all":  "Выбрать всё",
-               "select_none":  "Снять выбор"
+               "select_none":  "Снять выбор",
+               "act_auto":  "Автоматический уход",
+               "d_auto":  "Еженедельная очистка или ежедневный контроль, который исправляет безопасные проблемы.",
+               "auto_q":  "Поддерживать ПК в порядке автоматически?",
+               "auto_off":  "Не сейчас",
+               "auto_off_d":  "Я буду запускать программу сам, когда нужно.",
+               "auto_weekly":  "Еженедельная очистка",
+               "auto_weekly_d":  "Раз в неделю очищает временные файлы. Ничего не спрашивает и не закрывает.",
+               "auto_monitor":  "Следить и исправлять",
+               "auto_monitor_d":  "Проверяет ПК каждый день, сам исправляет безопасные проблемы и сообщает, если что-то требует вашего внимания.",
+               "auto_save":  "Сохранить",
+               "auto_note":  "Это можно изменить в любое время в разделе «Безопасность и инструменты»."
            },
     "zh":  {
                "_name":  "中文 (简体)",
@@ -1269,7 +1346,18 @@
                "preview_on":  "试运行已开启：不会更改任何内容。",
                "more_info":  "仅供参考 ({0})",
                "select_all":  "全选",
-               "select_none":  "清除选择"
+               "select_none":  "清除选择",
+               "act_auto":  "自动维护",
+               "d_auto":  "每周清理，或每天监控并自动修复安全的问题。",
+               "auto_q":  "让电脑自动保持健康？",
+               "auto_off":  "暂时不用",
+               "auto_off_d":  "我需要时自己运行。",
+               "auto_weekly":  "每周清理",
+               "auto_weekly_d":  "每周清理一次临时文件。不询问，也不关闭任何程序。",
+               "auto_monitor":  "监控并修复",
+               "auto_monitor_d":  "每天检查电脑，自动修复安全的问题，需要你处理时会通知你。",
+               "auto_save":  "保存",
+               "auto_note":  "你可以随时在“安全与工具”中更改。"
            },
     "hi":  {
                "_name":  "हिन्दी",
@@ -1428,7 +1516,18 @@
                "preview_on":  "ट्रायल मोड चालू है: कुछ नहीं बदलेगा।",
                "more_info":  "केवल सलाह ({0})",
                "select_all":  "सभी चुनें",
-               "select_none":  "चयन हटाएँ"
+               "select_none":  "चयन हटाएँ",
+               "act_auto":  "स्वचालित देखभाल",
+               "d_auto":  "साप्ताहिक सफ़ाई, या रोज़ की निगरानी जो सुरक्षित समस्याएँ ठीक करती है।",
+               "auto_q":  "क्या आपका PC अपने-आप स्वस्थ रखा जाए?",
+               "auto_off":  "अभी नहीं",
+               "auto_off_d":  "मैं जब चाहूँगा खुद टूल चलाऊँगा।",
+               "auto_weekly":  "साप्ताहिक सफ़ाई",
+               "auto_weekly_d":  "हफ़्ते में एक बार अस्थायी फ़ाइलें साफ़ करता है। कुछ नहीं पूछता, कुछ बंद नहीं करता।",
+               "auto_monitor":  "निगरानी और सुधार",
+               "auto_monitor_d":  "रोज़ आपका PC जाँचता है, सुरक्षित समस्याएँ खुद ठीक करता है और ज़रूरत होने पर आपको बताता है।",
+               "auto_save":  "सहेजें",
+               "auto_note":  "आप इसे कभी भी \"सुरक्षा और टूल\" में बदल सकते हैं।"
            },
     "tr":  {
                "_name":  "Türkçe",
@@ -1587,6 +1686,17 @@
                "preview_on":  "Deneme modu açık: hiçbir şey değiştirilmeyecek.",
                "more_info":  "Yalnızca öneri ({0})",
                "select_all":  "Tümünü seç",
-               "select_none":  "Seçimi temizle"
+               "select_none":  "Seçimi temizle",
+               "act_auto":  "Otomatik bakım",
+               "d_auto":  "Haftalık temizlik veya güvenli sorunları düzelten günlük izleme.",
+               "auto_q":  "Bilgisayarınız otomatik olarak sağlıklı kalsın mı?",
+               "auto_off":  "Şimdi değil",
+               "auto_off_d":  "Aracı istediğimde kendim çalıştıracağım.",
+               "auto_weekly":  "Haftalık temizlik",
+               "auto_weekly_d":  "Geçici dosyaları haftada bir temizler. Hiçbir şey sormaz, hiçbir şeyi kapatmaz.",
+               "auto_monitor":  "İzle ve düzelt",
+               "auto_monitor_d":  "Bilgisayarınızı her gün kontrol eder, güvenli sorunları kendisi düzeltir ve size ihtiyaç olursa haber verir.",
+               "auto_save":  "Kaydet",
+               "auto_note":  "Bunu istediğiniz zaman Güvenlik ve araçlar bölümünden değiştirebilirsiniz."
            }
 }

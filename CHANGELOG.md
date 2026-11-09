@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0
+
+- One-line install: paste `irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex` into PowerShell. It downloads the latest release (SHA-256 checked), keeps your settings and undo history when updating, and opens the app in your browser.
+- The classic Windows window version was removed. The browser app (and the console) remain.
+- Automatic care, asked on first run and changeable in Safety and tools: Not now, Weekly cleanup, or Watch and fix (a daily check that fixes only safe, reversible problems and sends a notification about serious ones).
+- New `-Monitor` mode for the daily watch; `-Browser` opens the app directly.
+- 11 new texts in all 10 languages.
+
 ## v11.4
 
 - Doctor results: every item can now be ticked (before, advice-only items had a greyed-out box and could not be selected). Clicking anywhere on a row ticks it. New Select all and Clear selection buttons. Fix applies to the items that have a fix; Ignore applies to everything ticked, with a count.

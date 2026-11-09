@@ -4,7 +4,7 @@
 
 用 PowerShell 编写的开源工具，用于**优化、清理和修复 Windows**。它会扫描你的电脑，说明问题，并且只修复你选择的项目：开机慢、C 盘已满、Windows 更新错误、缺少 DLL 文件、驱动问题、Wi-Fi 和蓝牙经常断开。每一项更改都会被记录，可以**撤销**。
 
-无需安装，无广告，无遥测。运行一个 `.bat` 文件，选择控制台菜单、现代浏览器窗口或经典 Windows 窗口。
+无需安装，无广告，无遥测。在 PowerShell 中粘贴一行：它会下载工具，在浏览器的现代窗口中打开，并询问你想做什么。
 
 ![医生结果](ui-doctor-ar.png)
 
@@ -28,8 +28,8 @@
 
 ## 快速开始
 
-1. 从[最新发行版](https://github.com/Ebnhussein/TurboOpt/releases/latest)下载 ZIP。
-2. 运行 `TurboOptimizer.bat`。
-3. 选择浏览器、窗口或控制台。先试试**试运行**（不会更改任何内容）。
+```powershell
+irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+```
 
-要求：Windows 10（1809 或更高）或 Windows 11，管理员权限。许可证：MIT。
+打开 PowerShell 并粘贴这一行。它会下载工具，在浏览器中打开，并询问你想做什么（包括自动维护：每周清理或每日监控）。先试试**试运行**。
