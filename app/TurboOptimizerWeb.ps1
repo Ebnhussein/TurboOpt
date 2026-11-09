@@ -168,6 +168,12 @@ $Categories = @(
         @{ K = 'act_def_off'; D = 'd_def_off'; Cmd = 'Invoke-DefenderDisable' },
         @{ K = 'act_def_on'; D = 'd_def_on'; Cmd = 'Invoke-DefenderEnable' },
         @{ K = 'act_def_update'; D = 'd_def_update'; Cmd = 'Invoke-DefenderUpdate' }) },
+    @{ Id = 'disk'; K = 'cat_disk'; Actions = @(
+        @{ K = 'act_boot'; D = 'd_boot'; Cmd = 'Invoke-BootCheck; Publish-Findings' },
+        @{ K = 'act_ahci'; D = 'd_ahci'; Cmd = 'Invoke-PrepareAhci' },
+        @{ K = 'act_gpt'; D = 'd_gpt'; Cmd = 'Invoke-ConvertGpt' },
+        @{ K = 'act_bios'; D = 'd_bios'; Cmd = 'Invoke-BiosSettings' },
+        @{ K = 'act_fw'; D = 'd_fw'; Cmd = 'Invoke-FirmwareReboot' }) },
     @{ Id = 'safety'; K = 'cat_safety'; Actions = @(
         @{ K = 'act_restore'; D = 'd_restore'; Cmd = 'Invoke-RestorePoint' },
         @{ K = 'act_revert'; D = 'd_revert'; Cmd = 'Invoke-Revert' },

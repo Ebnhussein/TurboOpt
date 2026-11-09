@@ -1,5 +1,12 @@
 # Changelog
 
+## v12.3
+
+- New Disk and boot section: a read-only check (boot mode, Secure Boot, TPM, SATA mode, TRIM, disks with MBR/GPT and SSD/HDD, Windows 11 readiness) with explanations, also part of the Doctor.
+- Fixes: turn TRIM on, prepare Windows for AHCI (so the SATA mode can be switched in the BIOS without a boot failure), guided MBR to GPT conversion with Windows' mbr2gpt (checks first, asks to type CONVERT, refuses on PCs that probably have no UEFI).
+- BIOS settings from Windows (experimental, Lenovo and HP; Dell read-only) and Restart into BIOS settings (UEFI PCs) or the key to press.
+- 14 new texts in all 10 languages.
+
 ## v12.2
 
 - Uninstall from inside the app (Safety and tools, or console option 22): offers to undo the changes first, removes the scheduled tasks, closes the app and deletes its own folder and data.

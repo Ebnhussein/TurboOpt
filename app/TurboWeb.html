@@ -226,7 +226,7 @@ const P = {
   sliders:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4', back:'M15 6l-6 6 6 6', wrench:'M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 3 11.4 11.4 3z'
 };
 function icon(n,cls){return '<svg class="i '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true"><path d="'+(P[n]||P.info)+'"/></svg>';}
-const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_auto:'update',act_uninstall:'trash',act_restore:'safety',act_revert:'back'};
+const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_boot:'disk',act_ahci:'speed',act_gpt:'wrench',act_bios:'sliders',act_fw:'update',act_auto:'update',act_uninstall:'trash',act_restore:'safety',act_revert:'back'};
 const COLORS = {Black:'#cccccc',DarkBlue:'#5c8dff',DarkGreen:'#3fb950',DarkCyan:'#39c5cf',DarkRed:'#ff6b6b',DarkMagenta:'#d2a8ff',DarkYellow:'#d29922',Gray:'#cccccc',DarkGray:'#8b949e',Blue:'#79c0ff',Green:'#56d364',Cyan:'#56d4dd',Red:'#ff7b72',Magenta:'#d2a8ff',Yellow:'#e3b341',White:'#ffffff'};
 const PROMPTS=[
  [/^\s*Close (.+?) now\? Unsaved work/,'p_close'],[/^\s*Create a restore point first\?/,'p_restore'],[/^\s*Continue\?/,'p_continue'],[/^\s*Delete these files\?/,'p_delete'],

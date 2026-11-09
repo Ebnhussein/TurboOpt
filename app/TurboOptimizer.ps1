@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '12.2'
+$script:Version    = '12.3'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -1652,6 +1652,9 @@ function Invoke-Fix($F) {
         'NetFix'       { Invoke-PowerSavingFix; Invoke-WifiReset; Invoke-BluetoothReset }
         'DefenderSigs' { Invoke-Act 'Update Defender definitions' { Update-MpSignature -ErrorAction Stop } }
         'Repair'       { Invoke-Repair }
+        'TrimOn'       { Invoke-TrimOn }
+        'PrepareAhci'  { Invoke-PrepareAhci }
+        'ConvertGpt'   { Invoke-ConvertGpt }
     }
 }
 
@@ -1664,7 +1667,7 @@ function Show-Findings {
     $labels = @{
         Restart = 'restart Windows'; Clean = 'clean files'; InstallWU = 'install through Windows Update'; InstallRuntime = 'download and install from Microsoft'
         ScanDevices = 'rescan hardware'; ResetWU = 'reset Windows Update components'; Chkdsk = 'check the disk'; ResyncTime = 'resync the clock'
-        ServiceStart = 'start the service'; NetFix = 'Wi-Fi/Bluetooth fixes'; DefenderSigs = 'update definitions'; Repair = 'SFC + DISM repair'; FlushDns = 'flush the DNS cache'
+        ServiceStart = 'start the service'; NetFix = 'Wi-Fi/Bluetooth fixes'; DefenderSigs = 'update definitions'; Repair = 'SFC + DISM repair'; FlushDns = 'flush the DNS cache'; TrimOn = 'turn TRIM on'; PrepareAhci = 'prepare Windows for AHCI'; ConvertGpt = 'convert to GPT (guided)'
         FirewallOn = 'turn the firewall on'; UacOn = 'turn UAC on (restart needed)'; RdpOff = 'turn Remote Desktop off'; Smb1Off = 'turn SMBv1 off (restart needed)'; GuestOff = 'disable the Guest account'
     }
     Write-Host ''
@@ -1719,6 +1722,7 @@ function Invoke-Doctor([switch]$ScanOnly, [string[]]$Only, [string]$Title = 'Doc
     $scans = @(
         @('Windows and security', 'Scan-System'), @('Windows Update', 'Scan-Updates'), @('devices and drivers', 'Scan-Devices'),
         @('runtime libraries', 'Scan-Runtimes'), @('drives', 'Scan-DiskHealth'), @('network exposure and accounts', 'Scan-Security'),
+        @('disk and boot setup', 'Scan-Boot'),
         @('the event log (7 days)', 'Scan-Events')
     )
     if ($Only -and $Only.Count -gt 0) { $scans = @($scans | Where-Object { $Only -contains $_[1] }) }
@@ -2019,6 +2023,8 @@ function Describe-ExtraEntry($E) {
         'localuser'       { return "re-enable account $($E.Name)" }
         'dns'             { return "restore DNS settings of adapter $($E.Index)" }
         'hibernate'       { return 'turn hibernation back on' }
+        'trim'            { return 'put the TRIM setting back as it was' }
+        'bios'            { return "put the BIOS option $($E.Name) back to $($E.Previous)" }
         'compactos'       { return 'undo Windows file compression (CompactOS)' }
         'startup-delayed' { return "start $($E.Name) at sign-in again (remove its delayed task)" }
         default           { return "$($E.Type)" }
@@ -2038,6 +2044,8 @@ function Undo-ExtraEntry($E) {
             else { Set-DnsClientServerAddress -InterfaceIndex ([int]$E.Index) -ServerAddresses @($E.Previous) -ErrorAction Stop }
         }
         'hibernate'  { powercfg /hibernate on; if ($LASTEXITCODE -ne 0) { throw 'powercfg /hibernate on failed' } }
+        'trim'       { fsutil behavior set DisableDeleteNotify ([int]$E.Previous) | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'fsutil failed' } }
+        'bios'       { Set-BiosOption ([string]$E.Vendor) ([string]$E.Name) ([string]$E.Previous) }
         'compactos'  { compact.exe /compactOS:never | Out-Null }
         'startup-delayed' {
             Unregister-ScheduledTask -TaskName $E.Task -Confirm:$false -ErrorAction SilentlyContinue
@@ -2504,6 +2512,298 @@ function Invoke-DelayStartup($It, [int]$Minutes) {
     }
 }
 
+# ================================================================ DISK AND BOOT (MBR / GPT, BIOS / UEFI, AHCI, TRIM, Windows 11 readiness)
+function Get-FirmwareMode {
+    try { $t = [int](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name PEFirmwareType -ErrorAction Stop).PEFirmwareType; if ($t -eq 2) { return 'UEFI' }; if ($t -eq 1) { return 'BIOS' } } catch {}
+    try {
+        $b = (bcdedit /enum '{current}' 2>$null) -join ' '
+        if ($b -match 'winload\.efi') { return 'UEFI' }
+        if ($b -match 'winload\.exe') { return 'BIOS' }
+    } catch {}
+    try { [void](Confirm-SecureBootUEFI -ErrorAction Stop); return 'UEFI' } catch { if ("$($_.Exception.Message)" -match 'not supported on this platform') { return 'BIOS' } }
+    return 'unknown'
+}
+function Get-SataMode {
+    $names = @()
+    try { $names = @(Get-CimInstance Win32_IDEController -ErrorAction Stop | ForEach-Object { [string]$_.Name }) } catch {}
+    $nvme = $false
+    try { $nvme = [bool](Get-PhysicalDisk -ErrorAction Stop | Where-Object { "$($_.BusType)" -eq 'NVMe' }) } catch {}
+    if ($names | Where-Object { $_ -match 'AHCI' }) { return 'AHCI' }
+    if ($names | Where-Object { $_ -match 'RAID|Rapid Storage|RST' }) { return 'RAID' }
+    if ($names | Where-Object { $_ -match 'IDE|Dual Channel|ATA' }) { return 'IDE' }
+    if ($nvme) { return 'NVMe' }
+    return 'unknown'
+}
+function Get-TrimOn {
+    try { $o = (fsutil behavior query DisableDeleteNotify) -join ' '; if ($o -match 'NTFS DisableDeleteNotify\s*=\s*(\d)') { return ($Matches[1] -eq '0') } } catch {}
+    return $null
+}
+function Get-CpuGeneration([string]$Name) {
+    if ($Name -match 'i[3579]-(\d{4,5})') { $n = $Matches[1]; if ($n.Length -eq 5) { return [int]$n.Substring(0, 2) } else { return [int]$n.Substring(0, 1) } }
+    if ($Name -match 'Ryzen\s*[3579]\s*(\d)\d{3}') { return [int]$Matches[1] }   # Ryzen 2000 -> 2
+    return $null
+}
+function Get-BootInfo {
+    $o = [ordered]@{}
+    $o.Firmware = Get-FirmwareMode
+    $sb = 'unsupported'
+    try { if (Confirm-SecureBootUEFI -ErrorAction Stop) { $sb = 'on' } else { $sb = 'off' } } catch {}
+    $o.SecureBoot = $sb
+    $o.TpmSpec = ''
+    try { $w = Get-CimInstance -Namespace 'root\cimv2\Security\MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction Stop; if ($w) { $o.TpmSpec = [string]$w.SpecVersion } } catch {}
+    $disks = @()
+    $sysNum = $null
+    try { $sysNum = (Get-Partition -DriveLetter ($env:SystemDrive.TrimEnd(':')) -ErrorAction Stop).DiskNumber } catch {}
+    $phys = @{}
+    try { foreach ($p in @(Get-PhysicalDisk -ErrorAction Stop)) { $phys[[int]$p.DeviceId] = $p } } catch {}
+    try {
+        foreach ($d in @(Get-Disk -ErrorAction Stop)) {
+            $p = $phys[[int]$d.Number]
+            $mt = 'unknown'; if ($p) { $mt = [string]$p.MediaType }
+            $disks += [pscustomobject]@{ Number = [int]$d.Number; Name = [string]$d.FriendlyName; SizeGB = [math]::Round($d.Size / 1GB); Style = [string]$d.PartitionStyle; Media = $mt; Bus = [string]$d.BusType; System = ($d.Number -eq $sysNum) }
+        }
+    } catch {}
+    $o.Disks = $disks
+    $o.SataMode = Get-SataMode
+    $o.Trim = Get-TrimOn
+    $o.CpuName = ''
+    try { $o.CpuName = [string](Get-CimInstance Win32_Processor | Select-Object -First 1).Name } catch {}
+    $o.RamGB = 0
+    try { $o.RamGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB) } catch {}
+    $o.BiosYear = 0; $o.BiosVersion = ''
+    try { $b = Get-CimInstance Win32_BIOS | Select-Object -First 1; $o.BiosVersion = [string]$b.SMBIOSBIOSVersion; if ($b.ReleaseDate) { $o.BiosYear = ([datetime]$b.ReleaseDate).Year } } catch {}
+    $o.BiosApi = Get-BiosApi
+    return [pscustomobject]$o
+}
+# Reasons this PC cannot run Windows 11 (an approximation of Microsoft's rules; PC Health Check is the official answer).
+function Get-Win11Blockers($I) {
+    $r = @()
+    if ($I.Firmware -eq 'BIOS') { $r += 'the PC starts in legacy BIOS mode (Windows 11 needs UEFI)' }
+    elseif ($I.Firmware -eq 'UEFI' -and $I.SecureBoot -eq 'unsupported') { $r += 'Secure Boot is not available' }
+    if (-not ($I.TpmSpec -match '^2\.0')) { $r += 'no TPM 2.0 was found' }
+    if ($I.RamGB -gt 0 -and $I.RamGB -lt 4) { $r += "only $($I.RamGB) GB of memory (4 GB needed)" }
+    $sys = @($I.Disks | Where-Object { $_.System })[0]
+    if ($sys -and $sys.SizeGB -lt 64) { $r += "the system disk is $($sys.SizeGB) GB (64 GB needed)" }
+    $g = Get-CpuGeneration $I.CpuName
+    if ($null -ne $g -and $g -lt 8 -and $I.CpuName -match 'Intel') { $r += "the CPU is Intel generation $g (generation 8 or newer is needed)" }
+    if ($null -ne $g -and $g -lt 2 -and $I.CpuName -match 'Ryzen') { $r += 'the CPU is an old Ryzen (Ryzen 2000 or newer is needed)' }
+    return $r
+}
+function Scan-Boot {
+    $I = Get-BootInfo
+    $sys = @($I.Disks | Where-Object { $_.System })[0]
+    $hasSsd = [bool](@($I.Disks | Where-Object { $_.Media -eq 'SSD' }).Count)
+    if ($I.SataMode -eq 'IDE') {
+        Add-Finding 'sata-ide' 'MED' 'The disk controller runs in IDE mode instead of AHCI' 'AHCI is the normal SATA mode. In IDE mode an SSD loses speed and TRIM (it slows down over time) and hard drives lose command queuing. Changing it in the BIOS without preparing Windows first makes Windows fail to start, so use the preparation step first, then change the SATA mode in the BIOS.' 'PrepareAhci'
+    }
+    if ($hasSsd -and $I.Trim -eq $false) {
+        Add-Finding 'trim-off' 'MED' 'TRIM is turned off although you have an SSD' 'TRIM lets Windows tell the SSD which blocks are free, which keeps it fast and healthy. Turning it on is safe and can be undone.' 'TrimOn'
+    }
+    if ($I.Firmware -eq 'BIOS' -and $sys) {
+        $d = "This PC starts in legacy BIOS mode and its system disk uses MBR. That works fine for Windows 10, but it limits disks to 2 TB, has no Secure Boot, and Windows 11 cannot be installed. Moving to UEFI + GPT needs a PC whose BIOS offers a UEFI option."
+        if ($I.BiosYear -gt 0 -and $I.BiosYear -lt 2014) { $d += " The BIOS of this PC dates from $($I.BiosYear). PCs of that age almost always have no UEFI option, so leave it as it is." ; Add-Finding 'boot-legacy' 'INFO' 'Legacy BIOS + MBR (normal for this PC)' $d }
+        else {
+            $d += " The BIOS here dates from $($I.BiosYear), so it may support UEFI: open the BIOS menu and look for Boot Mode / UEFI / CSM / Legacy."
+            Add-Finding 'boot-convertible' 'INFO' 'This PC may be able to move from legacy BIOS + MBR to UEFI + GPT' $d 'ConvertGpt'
+        }
+    }
+    foreach ($d in @($I.Disks | Where-Object { $_.Style -eq 'MBR' -and $_.SizeGB -gt 2200 })) {
+        Add-Finding "mbr-big-$($d.Number)" 'MED' ("Disk {0} ({1} GB) uses MBR: only the first 2 TB can be used" -f $d.Number, $d.SizeGB) 'MBR cannot address more than 2 TB. A data disk can be converted to GPT after you copy its files off it (Disk Management > Convert to GPT Disk). Nothing is changed automatically.'
+    }
+    $os = ''; try { $os = [string](Get-CimInstance Win32_OperatingSystem).Caption } catch {}
+    if ($os -match 'Windows 10') {
+        $b = Get-Win11Blockers $I
+        if ($b.Count -eq 0) { Add-Finding 'win11-ready' 'INFO' 'This PC looks ready for Windows 11' 'It passes the checks this tool can make (UEFI, Secure Boot, TPM 2.0, memory, disk, CPU generation). Confirm with Microsoft PC Health Check, then upgrade through Windows Update.' }
+        else { Add-Finding 'win11-blocked' 'INFO' 'This PC does not meet the Windows 11 requirements' ('Blocked by: ' + ($b -join '; ') + '. This is an approximation; Microsoft PC Health Check gives the official answer. Windows 10 keeps working, so only upgrade if the PC qualifies.') }
+    }
+    if ($I.Firmware -eq 'UEFI' -and $I.SecureBoot -eq 'off') { Add-Finding 'secureboot-off' 'INFO' 'Secure Boot is turned off' 'Secure Boot blocks boot-time malware and is required by Windows 11. It is switched in the BIOS menu (Security or Boot tab).' }
+}
+function Invoke-BootCheck {
+    Say '[+] Disk and boot check (read-only)' Cyan
+    $I = Get-BootInfo
+    $fw = switch ($I.Firmware) { 'UEFI' { 'UEFI' } 'BIOS' { 'legacy BIOS' } default { 'unknown' } }
+    Say ("  Boot mode      {0}" -f $fw) White
+    Say ("  Secure Boot    {0}" -f $I.SecureBoot) Gray
+    $tpm = 'none found'; if ($I.TpmSpec) { $tpm = "version $($I.TpmSpec)" }
+    Say ("  TPM            {0}" -f $tpm) Gray
+    Say ("  SATA mode      {0}" -f $I.SataMode) Gray
+    $trim = 'unknown'; if ($I.Trim -eq $true) { $trim = 'on' } elseif ($I.Trim -eq $false) { $trim = 'off' }
+    Say ("  TRIM           {0}" -f $trim) Gray
+    Say ("  BIOS           {0}  ({1})" -f $I.BiosVersion, $I.BiosYear) Gray
+    $api = 'not available on this PC (change BIOS options in the BIOS menu)'; if ($I.BiosApi) { $api = "available ($($I.BiosApi))" }
+    Say ("  BIOS from Windows  {0}" -f $api) Gray
+    Say '  Disks:' White
+    foreach ($d in $I.Disks) {
+        $sysTag = ''; if ($d.System) { $sysTag = '  [system]' }
+        Say ("    #{0}  {1,-28} {2,5} GB  {3,-4} {4}{5}" -f $d.Number, $d.Name, $d.SizeGB, $d.Style, $d.Media, $sysTag) Gray
+    }
+    Say '  Rule: UEFI starts from GPT disks, legacy BIOS starts from MBR disks. They must match.' DarkGray
+    Say '  An SSD works with both MBR and GPT. What helps an SSD is AHCI mode and TRIM.' DarkGray
+    Write-Host ''
+    Invoke-Doctor -ScanOnly -Only @('Scan-Boot') -Title 'Boot check'
+}
+function Invoke-TrimOn {
+    $prev = Get-TrimOn
+    Invoke-Act 'Turn TRIM on (fsutil behavior set DisableDeleteNotify 0)' {
+        Add-Journal @{ Type = 'trim'; Previous = $(if ($prev -eq $false) { 1 } else { 0 }) }
+        fsutil behavior set DisableDeleteNotify 0 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "fsutil exit code $LASTEXITCODE" }
+    }
+}
+# Makes Windows able to start with the SATA controller in AHCI mode, so the BIOS switch does not cause a boot failure.
+function Invoke-PrepareAhci {
+    Say '[ SWITCH TO AHCI ]' Cyan
+    $mode = Get-SataMode
+    if ($mode -eq 'AHCI' -or $mode -eq 'NVMe') { Say "  The disk controller already runs in $mode mode. Nothing to do." Green; return }
+    if ($mode -eq 'RAID') { Say '  The controller is in RAID mode (Intel RST). Switching it needs the vendor driver; this tool does not touch it.' Yellow; return }
+    Say '  Step 1 (this tool): make Windows load the AHCI driver at every start.' Gray
+    Say '  Step 2 (you or the BIOS tool): change "SATA Operation / SATA Mode" from IDE (or Compatibility) to AHCI.' Gray
+    Say '  Step 3: start Windows normally. If it fails, put the BIOS back to IDE and everything works as before.' Gray
+    if (-not (Ask '  Prepare Windows for AHCI now?')) { return }
+    $svc = 'HKLM:\SYSTEM\CurrentControlSet\Services'
+    foreach ($n in 'storahci', 'iaStorV', 'iaStorAV', 'iaStorAVC', 'amdsata', 'amdxata') {
+        if (Test-Path "$svc\$n") { Set-RegJournaled "$svc\$n" 'Start' 0 "Make the $n driver start at boot" }
+    }
+    if (Test-Path "$svc\storahci\StartOverride") { Invoke-Act 'Remove the storahci start override' { Remove-Item "$svc\storahci\StartOverride" -Recurse -Force -ErrorAction Stop } }
+    Say '  Windows is ready. Now change the SATA mode to AHCI:' Green
+    if (Get-BiosApi) { Say '  - This PC exposes BIOS settings to Windows: use "BIOS settings from Windows" (experimental) to change it, or do it in the BIOS menu.' Gray }
+    else { Say '  - Restart, open the BIOS menu (see "Restart into BIOS settings"), find SATA mode, choose AHCI, save and exit.' Gray }
+}
+# MBR -> GPT with Windows' own mbr2gpt tool. Refuses on PCs that probably cannot start from UEFI.
+function Invoke-ConvertGpt {
+    Say '[ CONVERT MBR TO GPT (advanced) ]' Cyan
+    $I = Get-BootInfo
+    $sys = @($I.Disks | Where-Object { $_.System })[0]
+    if (-not $sys) { Say '  Could not find the system disk.' Red; return }
+    if ($sys.Style -eq 'GPT') { Say '  The system disk already uses GPT. Nothing to do.' Green; return }
+    if ($I.Firmware -eq 'UEFI') { Say '  This PC starts in UEFI mode but the disk is MBR: that is unusual. Stopping so nothing is made worse.' Yellow; return }
+    $tool = Join-Path $env:SystemRoot 'System32\mbr2gpt.exe'
+    if (-not (Test-Path $tool)) { Say '  mbr2gpt.exe is missing (it ships with Windows 10 version 1703 and newer).' Red; return }
+    if ($I.BiosYear -gt 0 -and $I.BiosYear -lt 2014) {
+        Say ("  This PC's BIOS is from {0}. PCs of that age almost always have no UEFI option, and after the conversion a legacy-only PC cannot start." -f $I.BiosYear) Red
+        Say '  Refusing to convert. Keep MBR; Windows 10 works well that way.' Yellow
+        return
+    }
+    $maySet = $false
+    if ($I.BiosApi) {
+        $opts = @(Get-BiosOptions $I.BiosApi | Where-Object { $_.Name -match 'Boot ?Mode|UEFI|Legacy|CSM' })
+        if ($opts.Count -gt 0) { $maySet = $true; Say ("  The BIOS exposes boot-mode options ({0}): a UEFI choice exists." -f (($opts | ForEach-Object { $_.Name }) -join ', ')) Green }
+    }
+    if (-not $maySet) {
+        Say '  Open your BIOS menu first and check that a UEFI / Boot Mode option exists. If the BIOS only offers Legacy, do not convert.' Yellow
+        if (-not (Ask '  I checked: my BIOS has a UEFI option. Continue?')) { return }
+    }
+    Say '  Checking the disk layout (read-only)...' Gray
+    $v = (cmd.exe /c "`"$tool`" /validate /disk:$($sys.Number) /allowFullOS 2>&1") -join "`n"
+    $vcode = $LASTEXITCODE
+    foreach ($l in ($v -split "`r?`n")) { if ($l.Trim()) { Say ("    " + $l.Trim()) DarkGray } }
+    if ($vcode -ne 0) { Say '  The disk cannot be converted as it is (see above). Nothing was changed.' Red; return }
+    Say '  The layout can be converted. Important:' White
+    Say '  - Back up your data first. A restore point does not protect the partition table.' Yellow
+    Say '  - After the conversion Windows will NOT start until the BIOS is switched to UEFI (and Legacy/CSM turned off).' Yellow
+    if ($script:DryRun) { Say '  [DRY] would run: mbr2gpt /convert' DarkYellow; return }
+    if ((Read-Host '  Type CONVERT (capital letters) to continue, anything else cancels').Trim() -cne 'CONVERT') { Say '  Cancelled. Nothing was changed.' Yellow; return }
+    Write-Log "mbr2gpt convert disk $($sys.Number)"
+    $c = (cmd.exe /c "`"$tool`" /convert /disk:$($sys.Number) /allowFullOS 2>&1") -join "`n"
+    $ccode = $LASTEXITCODE
+    foreach ($l in ($c -split "`r?`n")) { if ($l.Trim()) { Say ("    " + $l.Trim()) DarkGray } }
+    if ($ccode -ne 0) { Add-Problem 'Convert to GPT' 'mbr2gpt reported an error' $c; Say '  The conversion failed. Do not change the BIOS; Windows still starts as before.' Red; return }
+    $script:NeedReboot = $true
+    Say '  Converted. NOW: restart, open the BIOS menu, set Boot Mode to UEFI (turn Legacy/CSM off), save and exit.' Green
+}
+# ---- BIOS settings through the maker's own Windows interface (Lenovo and HP). Experimental.
+function Get-BiosApi {
+    foreach ($c in @(@('Lenovo', 'root\wmi', 'Lenovo_BiosSetting'), @('HP', 'root\HP\InstrumentedBIOS', 'HP_BIOSEnumeration'), @('Dell', 'root\dcim\sysman\biosattributes', 'EnumerationAttribute'))) {
+        try { if (@(Get-CimInstance -Namespace $c[1] -ClassName $c[2] -ErrorAction Stop).Count -gt 0) { return $c[0] } } catch {}
+    }
+    return $null
+}
+# "SecureBoot,Enable;[Optional:Disable,Enable]" -> @{ Name; Value; Allowed }
+function ConvertFrom-LenovoSetting([string]$S) {
+    $main = $S; $allowed = @()
+    if ($S -match '^(.*?);\s*\[Optional:(.*)\]') { $main = $Matches[1]; $allowed = @($Matches[2] -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
+    $i = $main.IndexOf(',')
+    if ($i -lt 1) { return $null }
+    return @{ Name = $main.Substring(0, $i).Trim(); Value = $main.Substring($i + 1).Trim(); Allowed = $allowed }
+}
+function Get-BiosOptions([string]$Vendor) {
+    $r = @()
+    try {
+        if ($Vendor -eq 'Lenovo') { foreach ($x in @(Get-CimInstance -Namespace root\wmi -ClassName Lenovo_BiosSetting -ErrorAction Stop)) { $p = ConvertFrom-LenovoSetting ([string]$x.CurrentSetting); if ($p) { $r += $p } } }
+        elseif ($Vendor -eq 'HP') { foreach ($x in @(Get-CimInstance -Namespace root\HP\InstrumentedBIOS -ClassName HP_BIOSEnumeration -ErrorAction Stop)) { $r += @{ Name = [string]$x.Name; Value = [string]$x.Value; Allowed = @($x.PossibleValues | ForEach-Object { [string]$_ }) } } }
+        elseif ($Vendor -eq 'Dell') { foreach ($x in @(Get-CimInstance -Namespace root\dcim\sysman\biosattributes -ClassName EnumerationAttribute -ErrorAction Stop)) { $r += @{ Name = [string]$x.AttributeName; Value = (@($x.CurrentValue) -join ','); Allowed = @($x.PossibleValues | ForEach-Object { [string]$_ }) } } }
+    } catch {}
+    return @($r | Where-Object { $_ -and $_.Name })
+}
+function Set-BiosOption([string]$Vendor, [string]$Name, [string]$Value) {
+    if ($Vendor -eq 'Lenovo') {
+        $m = Get-CimInstance -Namespace root\wmi -ClassName Lenovo_SetBiosSetting -ErrorAction Stop
+        $r = Invoke-CimMethod -InputObject $m -MethodName SetBiosSetting -Arguments @{ parameter = "$Name,$Value" } -ErrorAction Stop
+        if ([string]$r.return -ne 'Success') { throw "The BIOS answered: $($r.return)" }
+        $s = Get-CimInstance -Namespace root\wmi -ClassName Lenovo_SaveBiosSettings -ErrorAction Stop
+        $r2 = Invoke-CimMethod -InputObject $s -MethodName SaveBiosSettings -Arguments @{ parameter = '' } -ErrorAction Stop
+        if ([string]$r2.return -ne 'Success') { throw "The BIOS could not save: $($r2.return)" }
+        return
+    }
+    if ($Vendor -eq 'HP') {
+        $i = Get-CimInstance -Namespace root\HP\InstrumentedBIOS -ClassName HP_BIOSSettingInterface -ErrorAction Stop
+        $r = Invoke-CimMethod -InputObject $i -MethodName SetBIOSSetting -Arguments @{ Name = $Name; Value = $Value; Password = '<utf-16/>' } -ErrorAction Stop
+        if ([int]$r.Return -ne 0) { throw "The BIOS answered with code $($r.Return) (a BIOS password may be set)" }
+        return
+    }
+    throw "Changing BIOS options is not supported for $Vendor PCs by this tool."
+}
+function Invoke-BiosSettings {
+    Say '[ BIOS SETTINGS FROM WINDOWS (experimental) ]' Cyan
+    $v = Get-BiosApi
+    if (-not $v) { Say '  This PC does not expose its BIOS to Windows (it needs a Lenovo, HP or Dell BIOS with the maker WMI interface). Change the options in the BIOS menu instead (see "Restart into BIOS settings").' Yellow; return }
+    Say "  BIOS interface found: $v" Green
+    $all = @(Get-BiosOptions $v | Where-Object { $_.Name -match 'SATA|AHCI|Secure ?Boot|Boot ?Mode|Legacy|UEFI|CSM|TPM|Fast ?Boot' })
+    if ($all.Count -eq 0) { Say '  No boot-related options were found.' Yellow; return }
+    $i = 0
+    foreach ($o in $all) { $i++; Say ("  {0,2}. {1,-34} = {2}   [{3}]" -f $i, $o.Name, $o.Value, ($o.Allowed -join ' / ')) Gray }
+    if ($v -eq 'Dell') { Say '  Dell PCs can be read here but changing options needs Dell Command | Configure; use the BIOS menu to change them.' Yellow; return }
+    $pick = 0
+    if (-not [int]::TryParse((Read-Host '  Which one do you want to change? (number, Enter = none) [0]').Trim(), [ref]$pick) -or $pick -lt 1 -or $pick -gt $all.Count) { return }
+    $o = $all[$pick - 1]
+    if ($o.Allowed.Count -eq 0) { Say '  The BIOS did not list the allowed values for this option, so it is not changed here.' Yellow; return }
+    $j = 0
+    foreach ($a in $o.Allowed) { $j++; Say ("  {0}. {1}" -f $j, $a) Gray }
+    $vp = 0
+    if (-not [int]::TryParse((Read-Host '  New value (number) [0]').Trim(), [ref]$vp) -or $vp -lt 1 -or $vp -gt $o.Allowed.Count) { return }
+    $new = $o.Allowed[$vp - 1]
+    Say '  A wrong BIOS value can stop Windows from starting. The previous value is saved so it can be undone from Windows, or from the BIOS menu if Windows no longer starts.' Yellow
+    if (-not (Ask ("  Change {0} from '{1}' to '{2}'?" -f $o.Name, $o.Value, $new))) { return }
+    $prev = $o.Value; $vendor = $v; $name = $o.Name
+    Invoke-Act "Set BIOS option $name to $new" {
+        Add-Journal @{ Type = 'bios'; Vendor = $vendor; Name = $name; Previous = $prev }
+        Set-BiosOption $vendor $name $new
+    }
+    if (-not $script:DryRun) {
+        $now = @(Get-BiosOptions $v | Where-Object { $_.Name -eq $name })[0]
+        if ($now) { Say ("  The BIOS now reports: {0} = {1}" -f $now.Name, $now.Value) Green }
+        Say '  The change takes effect after a restart.' Gray
+        $script:NeedReboot = $true
+    }
+}
+function Invoke-FirmwareReboot {
+    Say '[ RESTART INTO BIOS SETTINGS ]' Cyan
+    $fw = Get-FirmwareMode
+    if ($fw -eq 'UEFI') {
+        if (-not (Ask '  Restart now and open the firmware (BIOS) screen? Save your work first')) { return }
+        if ($script:DryRun) { Say '  [DRY] would run: shutdown /r /fw /t 5' DarkYellow; return }
+        Write-Log 'Restart into firmware settings'
+        shutdown.exe /r /fw /t 5
+        return
+    }
+    $maker = ''; try { $maker = [string](Get-CimInstance Win32_ComputerSystem).Manufacturer } catch {}
+    Say '  This PC starts in legacy BIOS mode, so Windows cannot open the BIOS screen for you. Restart and press the key right after the power button:' Gray
+    $keys = @{ 'Dell' = 'F2 (F12 for the boot menu)'; 'HP' = 'F10 or Esc (F9 for the boot menu)'; 'Hewlett' = 'F10 or Esc (F9 for the boot menu)'; 'LENOVO' = 'F1 or F2 (Enter, then F1, on some models)'; 'ASUS' = 'Del or F2 (F8 for the boot menu)'; 'Acer' = 'F2 or Del'; 'MSI' = 'Del'; 'Gigabyte' = 'Del' }
+    $hit = $null
+    foreach ($k in $keys.Keys) { if ($maker -match $k) { $hit = $k } }
+    if ($hit) { Say ("  Your PC ({0}): {1}" -f $maker, $keys[$hit]) Green } else { Say '  Common keys: F2, Del, F10, F1, Esc. The maker logo screen usually shows it.' Gray }
+}
+
 # ================================================================ AUTOMATION (scheduled checks) AND HTML REPORT
 function Register-MaintenanceTask {
     Invoke-Act 'Schedule weekly safe maintenance (clean temp files + health scan, asks nothing, closes nothing)' {
@@ -2815,7 +3115,13 @@ $script:MenuDef = @(
         @{ N = '19'; T = 'Create restore point';          P = 'Restore point';       A = { Invoke-RestorePoint } },
         @{ N = '20'; T = 'Revert recorded changes';       P = 'Revert';              A = { Invoke-Revert } },
         @{ N = '21'; T = 'Automatic care (weekly / watch)'; P = 'Automation';          A = { Invoke-AutomationMenu } },
-        @{ N = '22'; T = 'Uninstall Turbo Optimizer';     P = 'Uninstall';           A = { Invoke-Uninstall } }) }
+        @{ N = '22'; T = 'Uninstall Turbo Optimizer';     P = 'Uninstall';           A = { Invoke-Uninstall } }) },
+    @{ G = 'DISK AND BOOT'; Items = @(
+        @{ N = '23'; T = 'Disk and boot check (MBR/GPT/UEFI)'; P = 'Disk and boot';      A = { Invoke-BootCheck } },
+        @{ N = '24'; T = 'Switch to AHCI (prepare Windows)'; P = 'AHCI';                A = { Invoke-PrepareAhci } },
+        @{ N = '25'; T = 'Convert MBR to GPT (advanced)'; P = 'MBR to GPT';          A = { Invoke-ConvertGpt } },
+        @{ N = '26'; T = 'BIOS settings from Windows';    P = 'BIOS settings';       A = { Invoke-BiosSettings } },
+        @{ N = '27'; T = 'Restart into BIOS settings';    P = 'BIOS settings';       A = { Invoke-FirmwareReboot } }) }
 )
 function Show-About {
     Say '  About Turbo Optimizer' White
@@ -2920,7 +3226,12 @@ function Start-SelfTest {
         @{ N = 'drivers';      A = { Invoke-DriverMenu } },
         @{ N = 'network';      A = { Invoke-NetworkTools } },
         @{ N = 'report';       A = { Export-HtmlReport } },
-        @{ N = 'revert';       A = { Invoke-Revert } }
+        @{ N = 'revert';       A = { Invoke-Revert } },
+        @{ N = 'bootcheck';    A = { Invoke-BootCheck } },
+        @{ N = 'ahci';         A = { Invoke-PrepareAhci } },
+        @{ N = 'gpt';          A = { Invoke-ConvertGpt } },
+        @{ N = 'bios';         A = { Invoke-BiosSettings } },
+        @{ N = 'firmware';     A = { Invoke-FirmwareReboot } }
     )
     $failed = 0
     foreach ($s in $steps) {
