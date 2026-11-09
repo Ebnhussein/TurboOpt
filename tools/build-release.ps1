@@ -5,7 +5,7 @@
       README.txt
       LICENSE
       app\                        (engine, browser page, translations, config)
-  Also writes dist\notes.md (the release notes) from CHANGELOG.md.
+  Also writes dist\notes.md (the release notes) from docs\CHANGELOG.md.
   Usage: .\tools\build-release.ps1 -Tag v11.1
 #>
 param([Parameter(Mandatory)][string]$Tag)
@@ -18,7 +18,7 @@ if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $stage 'app') | Out-Null
 
 $appFiles = 'TurboOptimizer.ps1', 'TurboOptimizerWeb.ps1', 'TurboWeb.html', 'TurboUI_strings.json', 'config.ini'
-foreach ($f in $appFiles) { Copy-Item (Join-Path $root $f) (Join-Path $stage 'app') }
+foreach ($f in $appFiles) { Copy-Item (Join-Path $root "app\$f") (Join-Path $stage 'app') }
 Copy-Item (Join-Path $root 'LICENSE') $stage
 
 # the single launcher the user sees
@@ -75,9 +75,9 @@ foreach ($file in Get-ChildItem $stage -Recurse -File) {
 $zip.Dispose(); $fs.Dispose()
 
 # release notes: the matching section of CHANGELOG.md
-$cl = Get-Content (Join-Path $root 'CHANGELOG.md') -Raw
+$cl = Get-Content (Join-Path $root 'docs\CHANGELOG.md') -Raw
 $m = [regex]::Match($cl, "(?ms)^## v$([regex]::Escape($ver))\s*\r?\n(.*?)(?=^## v|\z)")
-$body = if ($m.Success) { $m.Groups[1].Value.Trim() } else { 'See CHANGELOG.md.' }
+$body = if ($m.Success) { $m.Groups[1].Value.Trim() } else { 'See the changelog.' }
 $notes = "**Easiest:** open PowerShell and paste ``irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex``.`n`n**Or download ``TurboOptimizer-$Tag.zip`` below** (not the 'Source code' files), unzip it, and double-click ``Start Turbo Optimizer.bat``. Windows 10 (1809+) or Windows 11. Switch on Dry run first to change nothing.`n`n$body"
 [System.IO.File]::WriteAllText((Join-Path $dist 'notes.md'), $notes, (New-Object System.Text.UTF8Encoding($false)))
 $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()

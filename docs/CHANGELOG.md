@@ -1,5 +1,9 @@
 # Changelog
 
+## v12.1
+
+- Tidier repository: the program lives in the app folder; policies are in .github and the changelog in docs, so the top level only has install.ps1, README and LICENSE besides folders.
+
 ## v12.0
 
 - One-line install: paste `irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex` into PowerShell. It downloads the latest release (SHA-256 checked), keeps your settings and undo history when updating, and opens the app in your browser.

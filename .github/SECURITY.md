@@ -15,4 +15,4 @@ Please do not open a public issue for a security problem. Use GitHub's private r
 ## Design notes
 
 - The browser version listens on `127.0.0.1` only, on a random port, behind a secret token, and accepts action names from a fixed list. It never runs text sent by the page.
-- Pull requests that change only `TurboUI_strings.json` are merged automatically after validation; the file is read as data. All other changes are reviewed by the owner.
+- Pull requests that change only `app/TurboUI_strings.json` are merged automatically after validation; the file is read as data. All other changes are reviewed by the owner.

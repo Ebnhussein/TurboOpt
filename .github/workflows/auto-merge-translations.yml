@@ -1,6 +1,6 @@
 name: Auto-merge translations
 
-# A pull request that changes ONLY TurboUI_strings.json is checked by the validation script
+# A pull request that changes ONLY app/TurboUI_strings.json is checked by the validation script
 # and merged automatically when it passes. Anything that touches code is never merged here:
 # it waits for the owner. The pull request's content is read as data and never executed.
 on:
@@ -28,7 +28,7 @@ jobs:
         run: |
           files=$(gh pr diff "$PR" --name-only)
           echo "$files"
-          if [ "$files" = "TurboUI_strings.json" ]; then echo "only=true" >> "$GITHUB_OUTPUT"; else echo "only=false" >> "$GITHUB_OUTPUT"; fi
+          if [ "$files" = "app/TurboUI_strings.json" ]; then echo "only=true" >> "$GITHUB_OUTPUT"; else echo "only=false" >> "$GITHUB_OUTPUT"; fi
       - name: Read the candidate file as data
         if: steps.scope.outputs.only == 'true'
         shell: bash
@@ -36,8 +36,8 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           git fetch origin "pull/$PR/head:candidate"
-          git show candidate:TurboUI_strings.json > "$RUNNER_TEMP/candidate.json"
-          cp TurboUI_strings.json "$RUNNER_TEMP/reference.json"
+          git show candidate:app/TurboUI_strings.json > "$RUNNER_TEMP/candidate.json"
+          cp app/TurboUI_strings.json "$RUNNER_TEMP/reference.json"
       - name: Validate with the trusted script
         if: steps.scope.outputs.only == 'true'
         shell: powershell

@@ -60,7 +60,7 @@ Run the same line again to update; your settings and undo history are kept. Pref
 irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
 ```
 
-Switch on **Dry run** at the top of the app first to see what would happen without changing anything. Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `TurboOptimizer.bat`.
+Switch on **Dry run** at the top of the app first to see what would happen without changing anything. Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `app\TurboOptimizer.bat`.
 
 ## Common problems it helps with
 
@@ -87,11 +87,11 @@ Switch on **Dry run** at the top of the app first to see what would happen witho
 - Defender can be turned off and back on. Windows Tamper Protection may block this; the tool tells you when it does.
 - The browser version listens on `127.0.0.1` only, on a random port, behind a secret token, and the page can only request actions by name.
 
-Read `config.ini` to see which cleanups and apps are on by default, and change them to suit you. Use this tool on your own machine and review what it offers before accepting. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+Read `app/config.ini` to see which cleanups and apps are on by default, and change them to suit you. Use this tool on your own machine and review what it offers before accepting. See [SECURITY.md](.github/SECURITY.md) to report a vulnerability.
 
 ## Languages
 
-English, Arabic, Spanish, French, German, Portuguese, Russian, Chinese (Simplified), Hindi and Turkish. To add one, copy a block in `TurboUI_strings.json`, translate the values and set `_name` and `_rtl`. The console and the detailed scan results are in English.
+English, Arabic, Spanish, French, German, Portuguese, Russian, Chinese (Simplified), Hindi and Turkish. To add one, copy a block in `app/TurboUI_strings.json`, translate the values and set `_name` and `_rtl`. The console and the detailed scan results are in English.
 
 ## FAQ
 
@@ -103,36 +103,35 @@ English, Arabic, Spanish, French, German, Portuguese, Russian, Chinese (Simplifi
 
 **Does it work on Windows 7, 8 or Linux?** No. Windows 10 (1809+) and Windows 11 only.
 
-**Can I run it without a graphical window?** Yes. `TurboOptimizer.bat` stays in the console and also supports unattended mode for scheduled tasks.
+**Can I run it without a graphical window?** Yes. `app\TurboOptimizer.bat` stays in the console and also supports unattended mode for scheduled tasks.
 
 ## Files
 
-| File | Purpose |
+| Path | Purpose |
 |---|---|
 | `install.ps1` | One-line installer |
-| `TurboOptimizer.ps1` | The engine and the console menu |
-| `TurboOptimizerWeb.ps1`, `TurboWeb.html` | Browser version (local server and page) |
-| `TurboUI_strings.json` | Translations |
-| `config.ini` | Lists and options |
+| `app/` | What gets installed: the engine (`TurboOptimizer.ps1`), the browser app (`TurboOptimizerWeb.ps1`, `TurboWeb.html`), translations (`TurboUI_strings.json`) and `config.ini` |
+| `docs/` | Translated READMEs, screenshots, changelog |
+| `tests/`, `tools/`, `.github/` | Checks, the release packager, workflows and project policies |
 
-Files created at run time (`turbo_log.txt`, `turbo_errors.log`, `turbo_undo.json`, `turbo_acks.json`, health reports) are listed in `.gitignore`.
+Files created at run time (`turbo_log.txt`, `turbo_errors.log`, `turbo_undo.json`, `turbo_acks.json`, `turbo_prefs.json`, health reports) are listed in `.gitignore`.
 
 ## Self-test
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\TurboOptimizer.ps1 -SelfTest
-powershell -ExecutionPolicy Bypass -File .\TurboOptimizerWeb.ps1 -Test -TestAll
+powershell -ExecutionPolicy Bypass -File .\app\TurboOptimizer.ps1 -SelfTest
+powershell -ExecutionPolicy Bypass -File .\app\TurboOptimizerWeb.ps1 -Test -TestAll
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\TurboOptimizer.ps1 -Monitor -DryRun
+powershell -ExecutionPolicy Bypass -File .\app\TurboOptimizer.ps1 -Monitor -DryRun
 ```
 
 All run in dry-run mode.
 
 ## Contributing
 
-Translations: edit only `TurboUI_strings.json` and open a pull request. If the automatic check passes, it is merged without waiting for anyone. Code changes are checked by CI and reviewed by the owner, because this tool runs as administrator. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
+Translations: edit only `app/TurboUI_strings.json` and open a pull request. If the automatic check passes, it is merged without waiting for anyone. Code changes are checked by CI and reviewed by the owner, because this tool runs as administrator. Details in [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 If this tool helped you, a star on the repository helps others find it.
 
