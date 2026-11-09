@@ -46,7 +46,9 @@ try {
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip -UseBasicParsing -Headers @{ 'User-Agent' = 'TurboOptimizer-installer' }
         $shaAsset = @($rel.assets | Where-Object { $_.name -eq ($asset.name + '.sha256') })[0]
         if ($shaAsset) {
-            $want = ((Invoke-WebRequest -Uri $shaAsset.browser_download_url -UseBasicParsing -Headers @{ 'User-Agent' = 'TurboOptimizer-installer' }).Content -as [string]).Trim().Split(' ')[0].ToLower()
+            $raw = (Invoke-WebRequest -Uri $shaAsset.browser_download_url -UseBasicParsing -Headers @{ 'User-Agent' = 'TurboOptimizer-installer' }).Content
+            if ($raw -is [byte[]]) { $raw = [System.Text.Encoding]::ASCII.GetString($raw) }
+            $want = ([string]$raw).Trim().Split(' ')[0].ToLower()
             $have = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
             if ($want -ne $have) { throw "The download is damaged (checksum mismatch). Try again." }
             Say '  Checksum OK.' DarkGray
