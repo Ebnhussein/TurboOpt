@@ -1,0 +1,12 @@
+{
+  "note": "Format documented by Lenovo for Lenovo_BiosSetting.CurrentSetting. Names and values are examples, not a dump of a real PC.",
+  "class": "Lenovo_BiosSetting",
+  "rows": [
+    { "CurrentSetting": "SecureBoot,Enable;[Optional:Disable,Enable]" },
+    { "CurrentSetting": "SATAControllerMode,AHCI;[Optional:Compatibility,AHCI]" },
+    { "CurrentSetting": "BootMode,UEFI;[Optional:Legacy Support,UEFI]" },
+    { "CurrentSetting": "WakeOnLAN,Disable;[Optional:Disable,Enable]" },
+    { "CurrentSetting": "" }
+  ],
+  "expect": { "api": "Lenovo", "count_boot_related": 3, "sata_value": "AHCI", "sata_allowed": ["Compatibility", "AHCI"] }
+}

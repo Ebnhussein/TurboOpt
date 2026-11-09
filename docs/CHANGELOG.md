@@ -1,5 +1,15 @@
 # Changelog
 
+## v12.5
+
+- BIOS guide for this PC: the key to press and the menu steps (AHCI, UEFI, Secure Boot) for your maker and model, from a data file anyone can extend by pull request (merged automatically after validation).
+- Better UEFI detection: the BIOS's own "UEFI supported" flag (SMBIOS) replaces the guess from the BIOS date. The conversion to GPT now refuses on PCs whose BIOS says it has no UEFI.
+- UEFI boot order (UEFI PCs): start from another entry once, or make an entry first; the previous order can be undone.
+- Save a BIOS report to share (no serial numbers) so support for a new model can be added; issue template included.
+- Dell: Dell Command | Configure can be installed and used to set AHCI and Secure Boot on supported Dell PCs.
+- Tests that run without hardware: recorded samples for Lenovo, HP and Dell interfaces, SMBIOS parsing, boot entries read in any Windows language, guide matching. They found and fixed two bugs: 11th generation and newer Intel CPUs were read as generation 1 (wrong Windows 11 warning), and boot entry descriptions were taken from the wrong line.
+- 6 new texts in all 10 languages.
+
 ## v12.4
 
 - BIOS settings from Windows now also change options on Dell PCs that have Dell Command | Monitor installed (read and write, using the values the BIOS itself allows). When a Dell PC does not expose its BIOS, the app says what is needed.

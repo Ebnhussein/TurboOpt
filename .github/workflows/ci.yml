@@ -37,6 +37,10 @@ jobs:
         shell: powershell
         run: .\tests\validate-strings.ps1 -Candidate .\app\TurboUI_strings.json
 
+      - name: BIOS guides
+        shell: powershell
+        run: .\tests\validate-guides.ps1 -Candidate .\app\bios-guides.json
+
   selftest:
     name: Dry-run self-test
     runs-on: windows-latest
@@ -45,6 +49,9 @@ jobs:
       - name: Engine self-test (changes nothing)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\app\TurboOptimizer.ps1 -SelfTest
+      - name: BIOS and boot logic (recorded samples, no hardware)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-bios-parsers.ps1
       - name: Browser version API test (changes nothing)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\app\TurboOptimizerWeb.ps1 -Test

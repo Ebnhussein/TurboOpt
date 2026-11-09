@@ -1,0 +1,21 @@
+name: BIOS report (help support a new PC model)
+description: Share what Turbo Optimizer can see of your BIOS so your model can be supported and tested
+labels: [bios]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        In the app: Disk and boot > "Save a BIOS report to share" (console option 30). It writes `turbo_bios_report.json`
+        next to the app. The file has no serial numbers or personal data. Open it and paste its content below.
+  - type: textarea
+    id: report
+    attributes:
+      label: Content of turbo_bios_report.json
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: keys
+    attributes:
+      label: Optional - the keys and menu path that worked for you
+      description: "For example: BIOS key F2; Advanced > SATA Operation > AHCI. This can go into the BIOS guide data."

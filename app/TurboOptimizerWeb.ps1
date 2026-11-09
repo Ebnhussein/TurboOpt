@@ -173,7 +173,10 @@ $Categories = @(
         @{ K = 'act_ahci'; D = 'd_ahci'; Cmd = 'Invoke-PrepareAhci' },
         @{ K = 'act_gpt'; D = 'd_gpt'; Cmd = 'Invoke-ConvertGpt' },
         @{ K = 'act_bios'; D = 'd_bios'; Cmd = 'Invoke-BiosSettings' },
-        @{ K = 'act_fw'; D = 'd_fw'; Cmd = 'Invoke-FirmwareReboot' }) },
+        @{ K = 'act_fw'; D = 'd_fw'; Cmd = 'Invoke-FirmwareReboot' },
+        @{ K = 'act_guide'; D = 'd_guide'; Cmd = 'Invoke-BiosGuide' },
+        @{ K = 'act_order'; D = 'd_order'; Cmd = 'Invoke-BootOrder' },
+        @{ K = 'act_dump'; D = 'd_dump'; Cmd = 'Invoke-BiosDump' }) },
     @{ Id = 'safety'; K = 'cat_safety'; Actions = @(
         @{ K = 'act_restore'; D = 'd_restore'; Cmd = 'Invoke-RestorePoint' },
         @{ K = 'act_revert'; D = 'd_revert'; Cmd = 'Invoke-Revert' },

@@ -1,8 +1,9 @@
 name: Auto-merge translations
 
-# A pull request that changes ONLY app/TurboUI_strings.json is checked by the validation script
-# and merged automatically when it passes. Anything that touches code is never merged here:
-# it waits for the owner. The pull request's content is read as data and never executed.
+# A pull request that changes ONLY the translations (app/TurboUI_strings.json) and/or the BIOS guides
+# (app/bios-guides.json) is checked by the validation scripts and merged automatically when they pass.
+# Anything that touches code is never merged here: it waits for the owner.
+# The pull request's files are read as data and never executed.
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
@@ -19,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
-      - name: Only the translations file changed?
+      - name: Only data files changed?
         id: scope
         shell: bash
         env:
@@ -28,20 +29,42 @@ jobs:
         run: |
           files=$(gh pr diff "$PR" --name-only)
           echo "$files"
-          if [ "$files" = "app/TurboUI_strings.json" ]; then echo "only=true" >> "$GITHUB_OUTPUT"; else echo "only=false" >> "$GITHUB_OUTPUT"; fi
-      - name: Read the candidate file as data
+          only=true
+          strings=false
+          guides=false
+          [ -z "$files" ] && only=false
+          for f in $files; do
+            case "$f" in
+              app/TurboUI_strings.json) strings=true ;;
+              app/bios-guides.json) guides=true ;;
+              *) only=false ;;
+            esac
+          done
+          echo "only=$only" >> "$GITHUB_OUTPUT"
+          echo "strings=$strings" >> "$GITHUB_OUTPUT"
+          echo "guides=$guides" >> "$GITHUB_OUTPUT"
+      - name: Read the candidate files as data
         if: steps.scope.outputs.only == 'true'
         shell: bash
         env:
           PR: ${{ github.event.pull_request.number }}
         run: |
           git fetch origin "pull/$PR/head:candidate"
-          git show candidate:app/TurboUI_strings.json > "$RUNNER_TEMP/candidate.json"
-          cp app/TurboUI_strings.json "$RUNNER_TEMP/reference.json"
-      - name: Validate with the trusted script
-        if: steps.scope.outputs.only == 'true'
+          if [ "${{ steps.scope.outputs.strings }}" = "true" ]; then
+            git show candidate:app/TurboUI_strings.json > "$RUNNER_TEMP/candidate-strings.json"
+            cp app/TurboUI_strings.json "$RUNNER_TEMP/reference-strings.json"
+          fi
+          if [ "${{ steps.scope.outputs.guides }}" = "true" ]; then
+            git show candidate:app/bios-guides.json > "$RUNNER_TEMP/candidate-guides.json"
+          fi
+      - name: Validate the translations with the trusted script
+        if: steps.scope.outputs.only == 'true' && steps.scope.outputs.strings == 'true'
         shell: powershell
-        run: .\tests\validate-strings.ps1 -Candidate "$env:RUNNER_TEMP\candidate.json" -Reference "$env:RUNNER_TEMP\reference.json"
+        run: .\tests\validate-strings.ps1 -Candidate "$env:RUNNER_TEMP\candidate-strings.json" -Reference "$env:RUNNER_TEMP\reference-strings.json"
+      - name: Validate the BIOS guides with the trusted script
+        if: steps.scope.outputs.only == 'true' && steps.scope.outputs.guides == 'true'
+        shell: powershell
+        run: .\tests\validate-guides.ps1 -Candidate "$env:RUNNER_TEMP\candidate-guides.json"
       - name: Merge
         if: steps.scope.outputs.only == 'true'
         shell: bash

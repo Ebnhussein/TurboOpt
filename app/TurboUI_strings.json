@@ -211,7 +211,13 @@
                "d_fw":  "Opens the firmware screen on the next start (UEFI PCs) or shows the key to press.",
                "fix_TrimOn":  "turn TRIM on",
                "fix_PrepareAhci":  "prepare Windows for AHCI",
-               "fix_ConvertGpt":  "convert to GPT (guided)"
+               "fix_ConvertGpt":  "convert to GPT (guided)",
+               "act_guide":  "BIOS guide for this PC",
+               "d_guide":  "The key to press and the menu steps for your maker and model: AHCI, UEFI, Secure Boot.",
+               "act_order":  "UEFI boot order",
+               "d_order":  "Choose what starts first, or start from another entry once. UEFI PCs only.",
+               "act_dump":  "Save a BIOS report to share",
+               "d_dump":  "Writes a file (no serial numbers) you can send so your PC model can be supported."
            },
     "ar":  {
                "_name":  "العربية",
@@ -425,7 +431,13 @@
                "d_fw":  "بيفتح شاشة البايوس في التشغيل الجاي (أجهزة UEFI) أو بيعرّفك الزرار اللي تضغطه.",
                "fix_TrimOn":  "تشغيل TRIM",
                "fix_PrepareAhci":  "تجهيز ويندوز لـAHCI",
-               "fix_ConvertGpt":  "التحويل إلى GPT (بإرشاد)"
+               "fix_ConvertGpt":  "التحويل إلى GPT (بإرشاد)",
+               "act_guide":  "دليل البايوس لجهازك",
+               "d_guide":  "الزرار اللي تضغطه وخطوات القوائم لشركتك وموديلك: AHCI وUEFI وSecure Boot.",
+               "act_order":  "ترتيب الإقلاع UEFI",
+               "d_order":  "اختار إيه اللي يشتغل الأول، أو ابدأ من خيار تاني مرة واحدة. أجهزة UEFI بس.",
+               "act_dump":  "حفظ تقرير البايوس للمشاركة",
+               "d_dump":  "بيكتب ملف (من غير أرقام تسلسلية) تقدر تبعته عشان موديل جهازك يتدعم."
            },
     "es":  {
                "_name":  "Español",
@@ -639,7 +651,13 @@
                "d_fw":  "Abre la pantalla del firmware en el próximo inicio (PC UEFI) o indica la tecla a pulsar.",
                "fix_TrimOn":  "activar TRIM",
                "fix_PrepareAhci":  "preparar Windows para AHCI",
-               "fix_ConvertGpt":  "convertir a GPT (guiado)"
+               "fix_ConvertGpt":  "convertir a GPT (guiado)",
+               "act_guide":  "Guía de BIOS para este PC",
+               "d_guide":  "La tecla a pulsar y los pasos del menú para tu marca y modelo: AHCI, UEFI, Secure Boot.",
+               "act_order":  "Orden de arranque UEFI",
+               "d_order":  "Elige qué arranca primero, o arranca desde otra entrada una sola vez. Solo PC UEFI.",
+               "act_dump":  "Guardar un informe de BIOS para compartir",
+               "d_dump":  "Crea un archivo (sin números de serie) que puedes enviar para que se admita tu modelo."
            },
     "fr":  {
                "_name":  "Français",
@@ -853,7 +871,13 @@
                "d_fw":  "Ouvre l\u0027écran du firmware au prochain démarrage (PC UEFI) ou indique la touche à presser.",
                "fix_TrimOn":  "activer TRIM",
                "fix_PrepareAhci":  "préparer Windows pour AHCI",
-               "fix_ConvertGpt":  "convertir en GPT (guidé)"
+               "fix_ConvertGpt":  "convertir en GPT (guidé)",
+               "act_guide":  "Guide du BIOS pour ce PC",
+               "d_guide":  "La touche à presser et les étapes du menu pour votre marque et modèle : AHCI, UEFI, Secure Boot.",
+               "act_order":  "Ordre de démarrage UEFI",
+               "d_order":  "Choisissez ce qui démarre en premier, ou démarrez une fois depuis une autre entrée. PC UEFI uniquement.",
+               "act_dump":  "Enregistrer un rapport BIOS à partager",
+               "d_dump":  "Crée un fichier (sans numéros de série) à envoyer pour que votre modèle soit pris en charge."
            },
     "de":  {
                "_name":  "Deutsch",
@@ -1067,7 +1091,13 @@
                "d_fw":  "Öffnet beim nächsten Start den Firmware-Bildschirm (UEFI-PCs) oder zeigt die Taste an.",
                "fix_TrimOn":  "TRIM aktivieren",
                "fix_PrepareAhci":  "Windows für AHCI vorbereiten",
-               "fix_ConvertGpt":  "in GPT umwandeln (geführt)"
+               "fix_ConvertGpt":  "in GPT umwandeln (geführt)",
+               "act_guide":  "BIOS-Anleitung für diesen PC",
+               "d_guide":  "Die Taste und die Menüschritte für Ihren Hersteller und Ihr Modell: AHCI, UEFI, Secure Boot.",
+               "act_order":  "UEFI-Startreihenfolge",
+               "d_order":  "Wählen Sie, was zuerst startet, oder starten Sie einmalig von einem anderen Eintrag. Nur UEFI-PCs.",
+               "act_dump":  "BIOS-Bericht zum Teilen speichern",
+               "d_dump":  "Erstellt eine Datei (ohne Seriennummern), die Sie senden können, damit Ihr Modell unterstützt wird."
            },
     "pt":  {
                "_name":  "Português",
@@ -1281,7 +1311,13 @@
                "d_fw":  "Abre a tela do firmware na próxima inicialização (PCs UEFI) ou mostra a tecla a pressionar.",
                "fix_TrimOn":  "ativar o TRIM",
                "fix_PrepareAhci":  "preparar o Windows para AHCI",
-               "fix_ConvertGpt":  "converter para GPT (guiado)"
+               "fix_ConvertGpt":  "converter para GPT (guiado)",
+               "act_guide":  "Guia da BIOS para este PC",
+               "d_guide":  "A tecla a pressionar e os passos do menu para o seu fabricante e modelo: AHCI, UEFI, Secure Boot.",
+               "act_order":  "Ordem de inicialização UEFI",
+               "d_order":  "Escolha o que inicia primeiro, ou inicie uma vez por outra entrada. Somente PCs UEFI.",
+               "act_dump":  "Salvar um relatório da BIOS para compartilhar",
+               "d_dump":  "Cria um arquivo (sem números de série) que você pode enviar para que seu modelo seja suportado."
            },
     "ru":  {
                "_name":  "Русский",
@@ -1495,7 +1531,13 @@
                "d_fw":  "Открывает экран прошивки при следующем запуске (ПК с UEFI) или показывает нужную клавишу.",
                "fix_TrimOn":  "включить TRIM",
                "fix_PrepareAhci":  "подготовить Windows к AHCI",
-               "fix_ConvertGpt":  "преобразовать в GPT (с подсказками)"
+               "fix_ConvertGpt":  "преобразовать в GPT (с подсказками)",
+               "act_guide":  "Руководство по BIOS для этого ПК",
+               "d_guide":  "Нужная клавиша и шаги меню для вашего производителя и модели: AHCI, UEFI, Secure Boot.",
+               "act_order":  "Порядок загрузки UEFI",
+               "d_order":  "Выберите, что загружается первым, или загрузитесь один раз с другой записи. Только ПК с UEFI.",
+               "act_dump":  "Сохранить отчёт о BIOS, чтобы поделиться",
+               "d_dump":  "Создаёт файл (без серийных номеров), который можно отправить, чтобы добавить поддержку вашей модели."
            },
     "zh":  {
                "_name":  "中文 (简体)",
@@ -1709,7 +1751,13 @@
                "d_fw":  "下次启动时打开固件界面（UEFI 电脑），或告诉你要按的键。",
                "fix_TrimOn":  "开启 TRIM",
                "fix_PrepareAhci":  "让 Windows 为 AHCI 做好准备",
-               "fix_ConvertGpt":  "转换为 GPT（引导式）"
+               "fix_ConvertGpt":  "转换为 GPT（引导式）",
+               "act_guide":  "本机 BIOS 指南",
+               "d_guide":  "针对你的品牌和型号：要按的键和菜单步骤（AHCI、UEFI、Secure Boot）。",
+               "act_order":  "UEFI 启动顺序",
+               "d_order":  "选择优先启动项，或仅一次从其他项启动。仅限 UEFI 电脑。",
+               "act_dump":  "保存 BIOS 报告以便分享",
+               "d_dump":  "生成一个文件（不含序列号），可发送给我们以支持你的型号。"
            },
     "hi":  {
                "_name":  "हिन्दी",
@@ -1923,7 +1971,13 @@
                "d_fw":  "अगली शुरुआत पर फ़र्मवेयर स्क्रीन खोलता है (UEFI PC) या दबाने वाली कुंजी बताता है।",
                "fix_TrimOn":  "TRIM चालू करें",
                "fix_PrepareAhci":  "Windows को AHCI के लिए तैयार करें",
-               "fix_ConvertGpt":  "GPT में बदलें (मार्गदर्शित)"
+               "fix_ConvertGpt":  "GPT में बदलें (मार्गदर्शित)",
+               "act_guide":  "इस PC के लिए BIOS गाइड",
+               "d_guide":  "आपके निर्माता और मॉडल के लिए दबाने वाली कुंजी और मेनू के चरण: AHCI, UEFI, Secure Boot।",
+               "act_order":  "UEFI बूट क्रम",
+               "d_order":  "चुनें कि पहले क्या शुरू हो, या एक बार दूसरी प्रविष्टि से शुरू करें। केवल UEFI PC।",
+               "act_dump":  "साझा करने के लिए BIOS रिपोर्ट सहेजें",
+               "d_dump":  "एक फ़ाइल बनाता है (सीरियल नंबर के बिना) जिसे भेजकर आपके मॉडल को सपोर्ट दिलाया जा सकता है।"
            },
     "tr":  {
                "_name":  "Türkçe",
@@ -2137,6 +2191,12 @@
                "d_fw":  "Sonraki açılışta ürün yazılımı ekranını açar (UEFI bilgisayarlar) veya basılacak tuşu gösterir.",
                "fix_TrimOn":  "TRIM\u0027i aç",
                "fix_PrepareAhci":  "Windows\u0027u AHCI için hazırla",
-               "fix_ConvertGpt":  "GPT\u0027ye dönüştür (yönlendirmeli)"
+               "fix_ConvertGpt":  "GPT\u0027ye dönüştür (yönlendirmeli)",
+               "act_guide":  "Bu bilgisayar için BIOS rehberi",
+               "d_guide":  "Üreticiniz ve modeliniz için basılacak tuş ve menü adımları: AHCI, UEFI, Secure Boot.",
+               "act_order":  "UEFI önyükleme sırası",
+               "d_order":  "Önce neyin açılacağını seçin veya bir kez başka girişten başlatın. Yalnızca UEFI bilgisayarlar.",
+               "act_dump":  "Paylaşmak için BIOS raporu kaydet",
+               "d_dump":  "Modelinizin desteklenmesi için gönderebileceğiniz bir dosya yazar (seri numarası içermez)."
            }
 }

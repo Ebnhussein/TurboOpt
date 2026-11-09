@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "generic": {
+    "enter": "F2, Del, F10, F1 or Esc (the maker logo screen usually shows the key)",
+    "boot_menu": "F12, F11, F9 or Esc",
+    "steps": {
+      "ahci": "Look for SATA Mode / SATA Operation / SATA Configuration (often under Advanced, Integrated Peripherals or Storage) and choose AHCI. Save and exit.",
+      "uefi": "Look for Boot Mode / Boot List Option / UEFI Boot and choose UEFI. Turn CSM / Legacy Support off. Save and exit.",
+      "secureboot": "Look for Secure Boot (under Boot or Security). Choose Enabled. It needs UEFI mode, and on some PCs the Secure Boot keys must be set to Default or Factory first.",
+      "legacy": "Look for Boot Mode / Legacy Support / CSM and choose Legacy (or turn CSM on)."
+    },
+    "note": "These are the usual menu names; your BIOS may use slightly different words."
+  },
+  "makers": [
+    { "match": "Dell", "enter": "F2", "boot_menu": "F12", "steps": { "ahci": "Settings or Advanced > SATA Operation (or Storage > SATA/NVMe Operation) > AHCI.", "uefi": "Settings > Boot Sequence or General > Boot Sequence > UEFI. Turn Legacy Option ROMs off.", "secureboot": "Boot Configuration > Secure Boot > Enable Secure Boot." } },
+    { "match": "HP|Hewlett", "enter": "F10 (Esc then F10 on some models)", "boot_menu": "Esc, then F9", "steps": { "ahci": "System Configuration or Advanced > SATA Device Mode (or Device Configurations > SATA Emulation) > AHCI.", "uefi": "Advanced or System Configuration > Boot Options > Legacy Support: Disabled (UEFI Boot Mode: Enabled).", "secureboot": "Advanced or Boot Options > Secure Boot Configuration > Secure Boot: Enabled." } },
+    { "match": "LENOVO|Lenovo", "enter": "F1 or F2 (ThinkPad: Enter, then F1); some models have a Novo button", "boot_menu": "F12 (ThinkPad: Enter, then F12)", "steps": { "ahci": "Configuration > Storage (or Config > Serial ATA) > SATA Controller Mode (or Option) > AHCI (not Compatibility).", "uefi": "Startup > UEFI/Legacy Boot > UEFI Only (or Both with UEFI first). Turn CSM Support off.", "secureboot": "Security > Secure Boot > Secure Boot: Enabled." } },
+    { "match": "ASUS", "enter": "F2 or Del", "boot_menu": "Esc or F8", "steps": { "ahci": "Advanced > SATA Configuration > SATA Mode Selection > AHCI.", "uefi": "Boot > Launch CSM: Disabled (Advanced Mode, F7).", "secureboot": "Boot > Secure Boot > OS Type: Windows UEFI mode." } },
+    { "match": "Acer", "enter": "F2 or Del", "boot_menu": "F12 (turn it on first in Main > F12 Boot Menu)", "steps": { "ahci": "Main > SATA Mode > AHCI.", "uefi": "Main or Boot > Boot Mode > UEFI.", "secureboot": "Security > Set Supervisor Password first; then Boot > Secure Boot > Enabled." } },
+    { "match": "MSI|Micro-Star", "enter": "Del", "boot_menu": "F11", "steps": { "ahci": "Settings > Advanced > Integrated Peripherals > SATA Mode > AHCI.", "uefi": "Settings > Boot > CSM / Boot Mode Select > UEFI.", "secureboot": "Settings > Security > Secure Boot > Enabled." } },
+    { "match": "Gigabyte|GIGABYTE", "enter": "Del", "boot_menu": "F12", "steps": { "ahci": "Peripherals > SATA Configuration > SATA Mode Selection > AHCI.", "uefi": "BIOS > CSM Support > Disabled.", "secureboot": "BIOS > Secure Boot > Enabled." } },
+    { "match": "SAMSUNG|Samsung", "enter": "F2", "boot_menu": "Esc", "steps": {} },
+    { "match": "TOSHIBA|Toshiba|Dynabook|dynabook", "enter": "F2 (or hold F2 while powering on)", "boot_menu": "F12", "steps": {} },
+    { "match": "FUJITSU|Fujitsu", "enter": "F2", "boot_menu": "F12", "steps": {} },
+    { "match": "Microsoft", "enter": "Hold the Volume Up button while pressing the power button", "boot_menu": "Hold the Volume Down button while pressing the power button", "steps": { "uefi": "Surface PCs are UEFI only; there is no legacy mode to turn off.", "secureboot": "PC information or Security > Secure Boot > Microsoft only." } }
+  ],
+  "models": [
+    { "maker": "Dell", "model": "Inspiron N5110", "enter": "F2", "boot_menu": "F12", "uefi": false, "verified": false, "steps": { "ahci": "Advanced > SATA Operation > AHCI (older versions show ATA / AHCI). On a PC that is already in AHCI mode there is nothing to change." }, "note": "Legacy BIOS only: no UEFI, no Secure Boot, no Windows 11. Keep MBR." }
+  ]
+}

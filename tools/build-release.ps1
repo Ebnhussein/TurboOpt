@@ -30,6 +30,15 @@ if (-not $mS.IsMatch($web) -or -not $mH.IsMatch($web)) { throw 'The web script h
 $web = $mS.Replace($web, { param($m) '$EmbeddedStrings = ''' + $b64s + '''' }, 1)
 $web = $mH.Replace($web, { param($m) '$EmbeddedHtml = ''' + $b64h + '''' }, 1)
 [System.IO.File]::WriteAllText($webPath, $web, (New-Object System.Text.UTF8Encoding($false)))
+# the BIOS guides travel inside the engine
+$enginePath = Join-Path $stage 'app\TurboOptimizer.ps1'
+$eng = [System.IO.File]::ReadAllText($enginePath)
+$mG = [regex]::new("(?m)^\`$EmbeddedGuides = ''")
+if (-not $mG.IsMatch($eng)) { throw 'The engine has no guides marker' }
+$b64g = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes((Join-Path $root 'app\bios-guides.json')))
+$eng = $mG.Replace($eng, { param($m) '$EmbeddedGuides = ''' + $b64g + '''' }, 1)
+$engBom = [System.IO.File]::ReadAllBytes($enginePath)[0] -eq 0xEF
+[System.IO.File]::WriteAllText($enginePath, $eng, (New-Object System.Text.UTF8Encoding($engBom)))
 Copy-Item (Join-Path $root 'LICENSE') $stage
 
 # the single launcher the user sees

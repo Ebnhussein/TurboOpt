@@ -1,0 +1,11 @@
+{
+  "note": "Shape of HP_BIOSEnumeration rows (Name, Value, PossibleValues). Synthetic example, not a dump of a real PC.",
+  "class": "HP_BIOSEnumeration",
+  "rows": [
+    { "Name": "SATA Device Mode", "Value": "AHCI", "PossibleValues": ["AHCI", "RAID"] },
+    { "Name": "Secure Boot", "Value": "Enable", "PossibleValues": ["Enable", "Disable"] },
+    { "Name": "Legacy Support", "Value": "Disable", "PossibleValues": ["Enable", "Disable"] },
+    { "Name": "Fan Always on while on AC Power", "Value": "Disable", "PossibleValues": ["Enable", "Disable"] }
+  ],
+  "expect": { "api": "HP", "count_boot_related": 3, "sata_value": "AHCI", "sata_allowed": ["AHCI", "RAID"] }
+}

@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '12.4'
+$script:Version    = '12.5'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -1278,8 +1278,8 @@ function Scan-System {
     $cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
     if ($os.Caption -match 'Windows 10') {
         $d = 'Windows 10 stopped getting free security updates on 14 Oct 2025. Open Settings > Update & Security > Windows Update and look for an Extended Security Updates (ESU) enrollment link. Microsoft''s ESU end date has been reported differently, so check microsoft.com for the current one.'
-        if ($cpu -match 'i[3579]-(\d{1,2})\d{3}') {
-            $gen = [int]$Matches[1]
+        $gen = Get-CpuGeneration $cpu
+        if ($null -ne $gen -and $cpu -match 'Intel') {
             if ($gen -lt 8) { $d += " This CPU is generation $gen and Windows 11 officially needs generation 8 or newer, so upgrading is not supported on this PC." }
         }
         Add-Finding 'os-eol' 'MED' 'Windows 10 is out of support' $d
@@ -2024,6 +2024,7 @@ function Describe-ExtraEntry($E) {
         'dns'             { return "restore DNS settings of adapter $($E.Index)" }
         'hibernate'       { return 'turn hibernation back on' }
         'trim'            { return 'put the TRIM setting back as it was' }
+        'bootorder'       { return 'put the UEFI boot order back as it was' }
         'bios'            { return "put the BIOS option $($E.Name) back to $($E.Previous)" }
         'compactos'       { return 'undo Windows file compression (CompactOS)' }
         'startup-delayed' { return "start $($E.Name) at sign-in again (remove its delayed task)" }
@@ -2045,6 +2046,7 @@ function Undo-ExtraEntry($E) {
         }
         'hibernate'  { powercfg /hibernate on; if ($LASTEXITCODE -ne 0) { throw 'powercfg /hibernate on failed' } }
         'trim'       { fsutil behavior set DisableDeleteNotify ([int]$E.Previous) | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'fsutil failed' } }
+        'bootorder'  { $ids = @($E.Previous | ForEach-Object { [string]$_ }); if ($ids.Count -eq 0) { throw 'no saved order' }; bcdedit /set '{fwbootmgr}' displayorder @ids | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'bcdedit failed' } }
         'bios'       { Set-BiosOption ([string]$E.Vendor) ([string]$E.Name) ([string]$E.Previous) }
         'compactos'  { compact.exe /compactOS:never | Out-Null }
         'startup-delayed' {
@@ -2513,6 +2515,7 @@ function Invoke-DelayStartup($It, [int]$Minutes) {
 }
 
 # ================================================================ DISK AND BOOT (MBR / GPT, BIOS / UEFI, AHCI, TRIM, Windows 11 readiness)
+$EmbeddedGuides = ''   # base64 of bios-guides.json, filled in by tools/build-release.ps1 for the user package
 function Get-FirmwareMode {
     try { $t = [int](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name PEFirmwareType -ErrorAction Stop).PEFirmwareType; if ($t -eq 2) { return 'UEFI' }; if ($t -eq 1) { return 'BIOS' } } catch {}
     try {
@@ -2522,6 +2525,34 @@ function Get-FirmwareMode {
     } catch {}
     try { [void](Confirm-SecureBootUEFI -ErrorAction Stop); return 'UEFI' } catch { if ("$($_.Exception.Message)" -match 'not supported on this platform') { return 'BIOS' } }
     return 'unknown'
+}
+# Reads the BIOS's own statement "UEFI specification is supported" from the SMBIOS table (Type 0, extension byte 2, bit 3).
+# Returns $true / $false, or $null when the table is too old or cannot be read. Works even while Windows runs in legacy mode.
+function Get-SmbiosType0([byte[]]$Raw) {
+    try {
+        if (-not $Raw) { $Raw = (Get-CimInstance -Namespace root\wmi -ClassName MSSmBios_RawSMBiosTables -ErrorAction Stop).SMBiosData }
+        if (-not $Raw -or $Raw.Length -lt 0x20) { return $null }
+        $i = 0
+        while ($i -lt $Raw.Length - 4) {
+            $type = $Raw[$i]; $len = $Raw[$i + 1]
+            if ($len -lt 4 -or $type -eq 127) { return $null }
+            if ($type -eq 0) {
+                if ($len -lt 0x14) { return $null }       # SMBIOS older than 2.4: no extension byte 2
+                return @{ Ext1 = [int]$Raw[$i + 0x12]; Ext2 = [int]$Raw[$i + 0x13] }
+            }
+            $j = $i + $len
+            while ($j -lt $Raw.Length - 1 -and -not ($Raw[$j] -eq 0 -and $Raw[$j + 1] -eq 0)) { $j++ }
+            $i = $j + 2
+        }
+    } catch {}
+    return $null
+}
+# The BIOS's own statement "UEFI specification is supported" (SMBIOS Type 0, extension byte 2, bit 3).
+# $true / $false, or $null when the table is too old or cannot be read. Works even while Windows runs in legacy mode.
+function Get-SmbiosUefiFlag([byte[]]$Raw) {
+    $t = Get-SmbiosType0 $Raw
+    if (-not $t) { return $null }
+    return (($t.Ext2 -band 0x08) -ne 0)
 }
 function Get-SataMode {
     $names = @()
@@ -2539,7 +2570,12 @@ function Get-TrimOn {
     return $null
 }
 function Get-CpuGeneration([string]$Name) {
-    if ($Name -match 'i[3579]-(\d{4,5})') { $n = $Matches[1]; if ($n.Length -eq 5) { return [int]$n.Substring(0, 2) } else { return [int]$n.Substring(0, 1) } }
+    if ($Name -match 'i[3579]-(\d{4,5})') {
+        $n = $Matches[1]
+        if ($n.Length -eq 5) { return [int]$n.Substring(0, 2) }
+        if ($n.StartsWith('1')) { return [int]$n.Substring(0, 2) }     # 4 digits starting with 1: 10th generation and newer mobile parts (1035G1, 1165G7, 1260P)
+        return [int]$n.Substring(0, 1)
+    }
     if ($Name -match 'Ryzen\s*[3579]\s*(\d)\d{3}') { return [int]$Matches[1] }   # Ryzen 2000 -> 2
     return $null
 }
@@ -2549,6 +2585,8 @@ function Get-BootInfo {
     $sb = 'unsupported'
     try { if (Confirm-SecureBootUEFI -ErrorAction Stop) { $sb = 'on' } else { $sb = 'off' } } catch {}
     $o.SecureBoot = $sb
+    $o.UefiCapable = $null
+    if ($o.Firmware -eq 'UEFI') { $o.UefiCapable = $true } else { $o.UefiCapable = Get-SmbiosUefiFlag }
     $o.TpmSpec = ''
     try { $w = Get-CimInstance -Namespace 'root\cimv2\Security\MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction Stop; if ($w) { $o.TpmSpec = [string]$w.SpecVersion } } catch {}
     $disks = @()
@@ -2568,12 +2606,19 @@ function Get-BootInfo {
     $o.Trim = Get-TrimOn
     $o.CpuName = ''
     try { $o.CpuName = [string](Get-CimInstance Win32_Processor | Select-Object -First 1).Name } catch {}
-    $o.RamGB = 0
-    try { $o.RamGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB) } catch {}
+    $o.RamGB = 0; $o.Maker = ''; $o.Model = ''
+    try { $cs = Get-CimInstance Win32_ComputerSystem; $o.RamGB = [math]::Round($cs.TotalPhysicalMemory / 1GB); $o.Maker = [string]$cs.Manufacturer; $o.Model = [string]$cs.Model } catch {}
     $o.BiosYear = 0; $o.BiosVersion = ''
     try { $b = Get-CimInstance Win32_BIOS | Select-Object -First 1; $o.BiosVersion = [string]$b.SMBIOSBIOSVersion; if ($b.ReleaseDate) { $o.BiosYear = ([datetime]$b.ReleaseDate).Year } } catch {}
     $o.BiosApi = Get-BiosApi
     return [pscustomobject]$o
+}
+# Can this PC start from UEFI? $true / $false / $null (unknown). The BIOS's own flag wins; the age of the BIOS is the fallback.
+function Test-UefiLikely($I) {
+    if ($I.UefiCapable -eq $true) { return $true }
+    if ($I.UefiCapable -eq $false) { return $false }
+    if ($I.BiosYear -gt 0 -and $I.BiosYear -lt 2014) { return $false }
+    return $null
 }
 # Reasons this PC cannot run Windows 11 (an approximation of Microsoft's rules; PC Health Check is the official answer).
 function Get-Win11Blockers($I) {
@@ -2589,6 +2634,63 @@ function Get-Win11Blockers($I) {
     if ($null -ne $g -and $g -lt 2 -and $I.CpuName -match 'Ryzen') { $r += 'the CPU is an old Ryzen (Ryzen 2000 or newer is needed)' }
     return $r
 }
+# ---- BIOS guides: keys and menu paths per maker and model (data file; anyone can add a model by pull request) ----
+function Get-BiosGuideData {
+    try {
+        if ($EmbeddedGuides) { return ([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($EmbeddedGuides)) | ConvertFrom-Json) }
+        $f = Join-Path $script:Dir 'bios-guides.json'
+        if (Test-Path $f) { return ([System.IO.File]::ReadAllText($f, [System.Text.Encoding]::UTF8) | ConvertFrom-Json) }
+    } catch {}
+    return $null
+}
+# Picks the best entry: an exact model, else the maker, else the generic one. Pure function (testable): data + maker + model in, guide out.
+function Select-BiosGuide($Data, [string]$Maker, [string]$Model) {
+    $g = [ordered]@{ Enter = ''; BootMenu = ''; Steps = @{}; Uefi = $null; Verified = $false; Source = 'generic'; Note = '' }
+    if (-not $Data) { return [pscustomobject]$g }
+    function Merge($e, $src) {
+        if ($e.enter) { $g.Enter = [string]$e.enter }
+        if ($e.boot_menu) { $g.BootMenu = [string]$e.boot_menu }
+        if ($e.steps) { foreach ($p in $e.steps.PSObject.Properties) { $g.Steps[$p.Name] = [string]$p.Value } }
+        if ($e.PSObject.Properties['uefi']) { $g.Uefi = [bool]$e.uefi }
+        if ($e.note) { $g.Note = [string]$e.note }
+        $g.Verified = [bool]$e.verified
+        $g.Source = $src
+    }
+    if ($Data.generic) { Merge $Data.generic 'generic' }
+    foreach ($m in @($Data.makers)) { if ($m.match -and $Maker -match [string]$m.match) { Merge $m ('maker ' + $m.match); break } }
+    foreach ($m in @($Data.models)) {
+        if ($m.maker -and $m.model -and ($Maker -match [string]$m.maker) -and ($Model -match [string]$m.model)) { Merge $m ('model ' + $m.model); break }
+    }
+    return [pscustomobject]$g
+}
+function Get-BiosGuide($I) {
+    $maker = ''; $model = ''
+    if ($I) { $maker = [string]$I.Maker; $model = [string]$I.Model }
+    return (Select-BiosGuide (Get-BiosGuideData) $maker $model)
+}
+function Show-GuideSteps($G, [string[]]$Goals) {
+    foreach ($k in $Goals) { if ($G.Steps[$k]) { Say ("    - " + $G.Steps[$k]) Gray } }
+}
+function Invoke-BiosGuide {
+    Say '[ BIOS GUIDE FOR THIS PC ]' Cyan
+    $I = Get-BootInfo
+    $G = Get-BiosGuide $I
+    Say ("  This PC: {0} {1}   (guide source: {2}{3})" -f $I.Maker, $I.Model, $G.Source, $(if ($G.Verified) { ', verified' } else { '' })) White
+    $u = 'unknown'; $t = Test-UefiLikely $I
+    if ($t -eq $true) { $u = 'yes' } elseif ($t -eq $false) { $u = 'no' }
+    Say ("  UEFI supported by this BIOS: {0}" -f $u) Gray
+    Say ("  Open the BIOS setup:  press {0} right after the power button" -f $G.Enter) Green
+    if ($G.BootMenu) { Say ("  One-time boot menu:   press {0}" -f $G.BootMenu) Gray }
+    $labels = [ordered]@{ ahci = 'To switch the SATA mode to AHCI'; uefi = 'To start in UEFI mode (needed for GPT and Windows 11)'; secureboot = 'To turn Secure Boot on'; legacy = 'To start in legacy mode' }
+    foreach ($k in $labels.Keys) {
+        if ($t -eq $false -and ($k -eq 'uefi' -or $k -eq 'secureboot')) { continue }      # not possible on this PC
+        if ($G.Steps[$k]) { Say ('  ' + $labels[$k] + ':') White; Say ('    ' + $G.Steps[$k]) Gray }
+    }
+    if ($t -eq $false) { Say '  Note: this BIOS reports no UEFI support, so the UEFI / Secure Boot steps do not apply to this PC.' Yellow }
+    if ($G.Note) { Say ('  ' + $G.Note) DarkGray }
+    Say '  Menu names differ between BIOS versions: look for the same words (SATA, AHCI, UEFI, Boot Mode, Secure Boot, CSM, Legacy).' DarkGray
+    Say '  Missing your model, or a step is wrong? Add it in app/bios-guides.json (pull request) or open an issue at github.com/Ebnhussein/TurboOpt.' DarkGray
+}
 function Scan-Boot {
     $I = Get-BootInfo
     $sys = @($I.Disks | Where-Object { $_.System })[0]
@@ -2600,10 +2702,16 @@ function Scan-Boot {
         Add-Finding 'trim-off' 'MED' 'TRIM is turned off although you have an SSD' 'TRIM lets Windows tell the SSD which blocks are free, which keeps it fast and healthy. Turning it on is safe and can be undone.' 'TrimOn'
     }
     if ($I.Firmware -eq 'BIOS' -and $sys) {
-        $d = "This PC starts in legacy BIOS mode and its system disk uses MBR. That works fine for Windows 10, but it limits disks to 2 TB, has no Secure Boot, and Windows 11 cannot be installed. Moving to UEFI + GPT needs a PC whose BIOS offers a UEFI option."
-        if ($I.BiosYear -gt 0 -and $I.BiosYear -lt 2014) { $d += " The BIOS of this PC dates from $($I.BiosYear). PCs of that age almost always have no UEFI option, so leave it as it is." ; Add-Finding 'boot-legacy' 'INFO' 'Legacy BIOS + MBR (normal for this PC)' $d }
-        else {
-            $d += " The BIOS here dates from $($I.BiosYear), so it may support UEFI: open the BIOS menu and look for Boot Mode / UEFI / CSM / Legacy."
+        $d = "This PC starts in legacy BIOS mode and its system disk uses MBR. That works fine for Windows 10, but it limits disks to 2 TB, has no Secure Boot, and Windows 11 cannot be installed."
+        $u = Test-UefiLikely $I
+        if ($u -eq $false) {
+            $why = 'the BIOS itself reports that it has no UEFI support'
+            if ($I.UefiCapable -eq $null) { $why = "the BIOS dates from $($I.BiosYear)" }
+            $d += " Moving to UEFI + GPT is not possible here ($why), so leave it as it is."
+            Add-Finding 'boot-legacy' 'INFO' 'Legacy BIOS + MBR (normal for this PC)' $d
+        } else {
+            if ($u -eq $true) { $d += ' The BIOS says it supports UEFI, so moving to UEFI + GPT is possible: open the BIOS menu and look for Boot Mode / UEFI / CSM / Legacy.' }
+            else { $d += ' Moving to UEFI + GPT needs a BIOS that offers a UEFI option; open the BIOS menu and look for Boot Mode / UEFI / CSM / Legacy.' }
             Add-Finding 'boot-convertible' 'INFO' 'This PC may be able to move from legacy BIOS + MBR to UEFI + GPT' $d 'ConvertGpt'
         }
     }
@@ -2623,6 +2731,9 @@ function Invoke-BootCheck {
     $I = Get-BootInfo
     $fw = switch ($I.Firmware) { 'UEFI' { 'UEFI' } 'BIOS' { 'legacy BIOS' } default { 'unknown' } }
     Say ("  Boot mode      {0}" -f $fw) White
+    $u = 'unknown'; $t = Test-UefiLikely $I
+    if ($t -eq $true) { $u = 'yes' } elseif ($t -eq $false) { $u = 'no' }
+    Say ("  UEFI support   {0}" -f $u) Gray
     Say ("  Secure Boot    {0}" -f $I.SecureBoot) Gray
     $tpm = 'none found'; if ($I.TpmSpec) { $tpm = "version $($I.TpmSpec)" }
     Say ("  TPM            {0}" -f $tpm) Gray
@@ -2667,9 +2778,10 @@ function Invoke-PrepareAhci {
     if (Test-Path "$svc\storahci\StartOverride") { Invoke-Act 'Remove the storahci start override' { Remove-Item "$svc\storahci\StartOverride" -Recurse -Force -ErrorAction Stop } }
     Say '  Windows is ready. Now change the SATA mode to AHCI:' Green
     if (Get-BiosApi) { Say '  - This PC exposes BIOS settings to Windows: use "BIOS settings from Windows" (experimental) to change it, or do it in the BIOS menu.' Gray }
-    else { Say '  - Restart, open the BIOS menu (see "Restart into BIOS settings"), find SATA mode, choose AHCI, save and exit.' Gray }
+    else { Say '  - Restart, open the BIOS menu (see "BIOS guide for this PC"), find the SATA mode, choose AHCI, save and exit.' Gray }
+    Show-GuideSteps (Get-BiosGuide (Get-BootInfo)) @('ahci')
 }
-# MBR -> GPT with Windows' own mbr2gpt tool. Refuses on PCs that probably cannot start from UEFI.
+# MBR -> GPT with Windows' own mbr2gpt tool. Refuses on PCs that cannot start from UEFI.
 function Invoke-ConvertGpt {
     Say '[ CONVERT MBR TO GPT (advanced) ]' Cyan
     $I = Get-BootInfo
@@ -2679,8 +2791,11 @@ function Invoke-ConvertGpt {
     if ($I.Firmware -eq 'UEFI') { Say '  This PC starts in UEFI mode but the disk is MBR: that is unusual. Stopping so nothing is made worse.' Yellow; return }
     $tool = Join-Path $env:SystemRoot 'System32\mbr2gpt.exe'
     if (-not (Test-Path $tool)) { Say '  mbr2gpt.exe is missing (it ships with Windows 10 version 1703 and newer).' Red; return }
-    if ($I.BiosYear -gt 0 -and $I.BiosYear -lt 2014) {
-        Say ("  This PC's BIOS is from {0}. PCs of that age almost always have no UEFI option, and after the conversion a legacy-only PC cannot start." -f $I.BiosYear) Red
+    $u = Test-UefiLikely $I
+    if ($u -eq $false) {
+        $why = 'its BIOS reports that it has no UEFI support'
+        if ($I.UefiCapable -eq $null) { $why = "its BIOS dates from $($I.BiosYear)" }
+        Say ("  This PC cannot start from UEFI ({0}). After the conversion it could not start at all." -f $why) Red
         Say '  Refusing to convert. Keep MBR; Windows 10 works well that way.' Yellow
         return
     }
@@ -2689,6 +2804,7 @@ function Invoke-ConvertGpt {
         $opts = @(Get-BiosOptions $I.BiosApi | Where-Object { $_.Name -match 'Boot ?Mode|UEFI|Legacy|CSM' })
         if ($opts.Count -gt 0) { $maySet = $true; Say ("  The BIOS exposes boot-mode options ({0}): a UEFI choice exists." -f (($opts | ForEach-Object { $_.Name }) -join ', ')) Green }
     }
+    if ($u -eq $true) { $maySet = $true; Say '  The BIOS reports that it supports UEFI.' Green }
     if (-not $maySet) {
         Say '  Open your BIOS menu first and check that a UEFI / Boot Mode option exists. If the BIOS only offers Legacy, do not convert.' Yellow
         if (-not (Ask '  I checked: my BIOS has a UEFI option. Continue?')) { return }
@@ -2701,6 +2817,7 @@ function Invoke-ConvertGpt {
     Say '  The layout can be converted. Important:' White
     Say '  - Back up your data first. A restore point does not protect the partition table.' Yellow
     Say '  - After the conversion Windows will NOT start until the BIOS is switched to UEFI (and Legacy/CSM turned off).' Yellow
+    Show-GuideSteps (Get-BiosGuide $I) @('uefi')
     if ($script:DryRun) { Say '  [DRY] would run: mbr2gpt /convert' DarkYellow; return }
     if ((Read-Host '  Type CONVERT (capital letters) to continue, anything else cancels').Trim() -cne 'CONVERT') { Say '  Cancelled. Nothing was changed.' Yellow; return }
     Write-Log "mbr2gpt convert disk $($sys.Number)"
@@ -2711,7 +2828,71 @@ function Invoke-ConvertGpt {
     $script:NeedReboot = $true
     Say '  Converted. NOW: restart, open the BIOS menu, set Boot Mode to UEFI (turn Legacy/CSM off), save and exit.' Green
 }
-# ---- BIOS settings through the maker's own Windows interface (Lenovo and HP). Experimental.
+# ---- UEFI boot entries and order (any UEFI PC; uses bcdedit, no BIOS access) ----
+# bcdedit labels are translated by Windows, so entries are read by position: after the line with the {id} come device, path and description.
+function ConvertFrom-BcdFirmware([string[]]$Lines) {
+    $blocks = @(); $cur = $null
+    foreach ($l in $Lines) {
+        if ($l -match '^\s*$') { if ($cur) { $blocks += , $cur; $cur = $null }; continue }
+        if ($l -match '^-{3,}') { continue }
+        if (-not $cur) { $cur = @() }
+        $cur += $l
+    }
+    if ($cur) { $blocks += , $cur }
+    $entries = @(); $order = @(); $mgr = $null
+    foreach ($b in $blocks) {
+        if ($b.Count -lt 2) { continue }
+        $first = $b | Where-Object { $_ -match '\{([0-9a-fA-F-]{8,}|bootmgr|fwbootmgr)\}' } | Select-Object -First 1
+        if (-not $first) { continue }
+        $id = [regex]::Match($first, '\{[^}]+\}').Value
+        if ($id -eq '{fwbootmgr}') {
+            $mgr = $id
+            foreach ($x in ($b | Select-Object -Skip 1)) { foreach ($m in [regex]::Matches($x, '\{([0-9a-fA-F-]{8,}|bootmgr)\}')) { $order += $m.Value } }
+            continue
+        }
+        $desc = $id
+        $at = [array]::IndexOf($b, $first)
+        if ($at -ge 0 -and $b.Count -gt $at + 3) { $parts = ($b[$at + 3] -split '\s{2,}', 2); if ($parts.Count -eq 2 -and $parts[1].Trim()) { $desc = $parts[1].Trim() } }
+        $entries += [pscustomobject]@{ Id = $id; Description = $desc }
+    }
+    return [pscustomobject]@{ Entries = $entries; Order = $order }
+}
+function Get-FirmwareBootEntries {
+    $out = @()
+    try { $out = @(bcdedit /enum firmware 2>$null) } catch {}
+    return (ConvertFrom-BcdFirmware $out)
+}
+function Invoke-BootOrder {
+    Say '[ UEFI BOOT ORDER ]' Cyan
+    if ((Get-FirmwareMode) -ne 'UEFI') { Say '  This PC starts in legacy BIOS mode, so there are no UEFI boot entries to change. Use the one-time boot menu key instead (see "BIOS guide for this PC").' Yellow; return }
+    $f = Get-FirmwareBootEntries
+    if ($f.Entries.Count -eq 0) { Say '  No firmware boot entries were found.' Yellow; return }
+    $i = 0
+    foreach ($e in $f.Entries) { $i++; $pos = [array]::IndexOf($f.Order, $e.Id); $tag = ''; if ($pos -ge 0) { $tag = "   (position $($pos + 1) in the boot order)" }; Say ("  {0,2}. {1}{2}" -f $i, $e.Description, $tag) Gray }
+    $pick = 0
+    if (-not [int]::TryParse((Read-Host '  Which entry? (number, Enter = none) [0]').Trim(), [ref]$pick) -or $pick -lt 1 -or $pick -gt $f.Entries.Count) { return }
+    $e = $f.Entries[$pick - 1]
+    Say '  1. Start from it once, on the next restart only (nothing else changes)' Gray
+    Say '  2. Make it the first entry from now on' Gray
+    $how = (Read-Host '  Choose [1]').Trim()
+    if ($how -eq '2') {
+        if (-not (Ask ("  Put '{0}' first in the boot order?" -f $e.Description))) { return }
+        $prevOrder = @($f.Order); $id = $e.Id
+        Invoke-Act "Make '$($e.Description)' the first boot entry" {
+            Add-Journal @{ Type = 'bootorder'; Previous = $prevOrder }
+            bcdedit /set '{fwbootmgr}' displayorder $id /addfirst | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "bcdedit exit code $LASTEXITCODE" }
+        }
+    } else {
+        $id = $e.Id
+        Invoke-Act "Start from '$($e.Description)' on the next restart" {
+            bcdedit /set '{fwbootmgr}' bootsequence $id | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "bcdedit exit code $LASTEXITCODE" }
+        }
+        if (-not $script:DryRun -and (Ask '  Restart now? Save your work first')) { Write-Log 'Restart for one-time boot entry'; shutdown.exe /r /t 5 }
+    }
+}
+# ---- BIOS settings through the maker's own Windows interface (Lenovo, HP, Dell). Experimental. ----
 function Get-BiosApi {
     foreach ($c in @(@('Lenovo', 'root\wmi', 'Lenovo_BiosSetting'), @('HP', 'root\HP\InstrumentedBIOS', 'HP_BIOSEnumeration'), @('Dell', 'root\dcim\sysman\biosattributes', 'EnumerationAttribute'))) {
         try { if (@(Get-CimInstance -Namespace $c[1] -ClassName $c[2] -ErrorAction Stop).Count -gt 0) { return $c[0] } } catch {}
@@ -2760,13 +2941,48 @@ function Set-BiosOption([string]$Vendor, [string]$Name, [string]$Value) {
     }
     throw "Changing BIOS options is not supported for $Vendor PCs by this tool."
 }
+# ---- Dell Command | Configure (free tool from Dell): covers Dell business PCs that have no WMI provider installed ----
+function Get-CctkPath {
+    foreach ($p in @("${env:ProgramFiles(x86)}\Dell\Command Configure\X86_64\cctk.exe", "$env:ProgramFiles\Dell\Command Configure\X86_64\cctk.exe", "${env:ProgramFiles(x86)}\Dell\Command Configure\X86\cctk.exe")) { if (Test-Path $p) { return $p } }
+    return $null
+}
+function Invoke-DellCctk {
+    $I = Get-BootInfo
+    if ($I.Maker -notmatch 'Dell') { return $false }
+    if ((Test-UefiLikely $I) -eq $false -and $I.BiosYear -gt 0 -and $I.BiosYear -lt 2014) { Say '  This Dell PC is too old for Dell Command | Configure (it supports newer business models). Use the BIOS menu; see "BIOS guide for this PC".' Yellow; return $true }
+    $cctk = Get-CctkPath
+    if (-not $cctk) {
+        if (-not (Ask '  Dell Command | Configure (free, from Dell) can change BIOS options on supported Dell PCs. Install it through winget now?')) { return $true }
+        Invoke-Act 'Install Dell Command | Configure (winget Dell.CommandConfigure)' {
+            winget install --id Dell.CommandConfigure -e --silent --accept-package-agreements --accept-source-agreements
+            if ($LASTEXITCODE -ne 0) { throw "winget exit code $LASTEXITCODE" }
+        }
+        $cctk = Get-CctkPath
+        if (-not $cctk) { Say '  The tool is not installed yet (it may need a restart). Run this again afterwards.' Yellow; return $true }
+    }
+    Say '  1. SATA operation  -> AHCI' Gray
+    Say '  2. Secure Boot     -> enable' Gray
+    $c = (Read-Host '  Which one? (number, Enter = none) [0]').Trim()
+    $opt = $null; $val = $null
+    if ($c -eq '1') { $opt = 'sataoperation'; $val = 'ahci' } elseif ($c -eq '2') { $opt = 'secureboot'; $val = 'enable' } else { return $true }
+    $cur = ((cmd.exe /c "`"$cctk`" --$opt 2>&1") -join ' ').Trim()
+    Say ("  Now: {0}" -f $cur) Gray
+    if (-not (Ask ("  Set {0} to {1}? A wrong BIOS value can stop Windows from starting" -f $opt, $val))) { return $true }
+    $o = $opt; $v = $val; $prev = $cur
+    Invoke-Act "Set BIOS option $o to $v with Dell Command | Configure" {
+        $res = (cmd.exe /c "`"$cctk`" --$o=$v 2>&1") -join ' '
+        if ($LASTEXITCODE -ne 0) { throw "cctk said: $res" }
+    }
+    if (-not $script:DryRun) { Say ("  The BIOS now reports: {0}" -f ((cmd.exe /c "`"$cctk`" --$opt 2>&1") -join ' ').Trim()) Green; $script:NeedReboot = $true }
+    return $true
+}
 function Invoke-BiosSettings {
     Say '[ BIOS SETTINGS FROM WINDOWS (experimental) ]' Cyan
     $v = Get-BiosApi
     if (-not $v) {
-        Say '  This PC does not expose its BIOS to Windows (it needs a Lenovo, HP or Dell BIOS with the maker WMI interface). Change the options in the BIOS menu instead (see "Restart into BIOS settings").' Yellow
-        $maker = ''; try { $maker = [string](Get-CimInstance Win32_ComputerSystem).Manufacturer } catch {}
-        if ($maker -match 'Dell') { Say '  Dell tip: newer Dell business PCs (Latitude, OptiPlex, Precision) expose it once "Dell Command | Monitor" is installed from dell.com/support. Older or home models (Inspiron, from before about 2014) usually cannot.' DarkGray }
+        Say '  This PC does not expose its BIOS to Windows through a maker interface.' Yellow
+        if (Invoke-DellCctk) { return }
+        Say '  Change the options in the BIOS menu instead: see "BIOS guide for this PC".' Yellow
         return
     }
     Say "  BIOS interface found: $v" Green
@@ -2797,6 +3013,25 @@ function Invoke-BiosSettings {
         $script:NeedReboot = $true
     }
 }
+# Saves what this tool can see of the BIOS interface (no serial numbers) so that support for a new model can be tested and added.
+function Invoke-BiosDump {
+    Say '[ SAVE A BIOS REPORT ]' Cyan
+    $I = Get-BootInfo
+    $opts = @(); if ($I.BiosApi) { $opts = @(Get-BiosOptions $I.BiosApi | ForEach-Object { @{ name = $_.Name; value = $_.Value; allowed = @($_.Allowed) } }) }
+    $ext = ''; $t0 = Get-SmbiosType0; if ($t0) { $ext = ('0x{0:X2} 0x{1:X2}' -f $t0.Ext1, $t0.Ext2) }
+    $rep = [ordered]@{
+        tool = "Turbo Optimizer $($script:Version)"; created = (Get-Date).ToString('yyyy-MM-dd')
+        maker = $I.Maker; model = $I.Model; bios_version = $I.BiosVersion; bios_year = $I.BiosYear
+        firmware_mode = $I.Firmware; uefi_flag_smbios = $I.UefiCapable; smbios_type0_ext_bytes = $ext
+        secure_boot = $I.SecureBoot; tpm_spec = $I.TpmSpec; sata_mode = $I.SataMode; trim_on = $I.Trim
+        bios_interface = $I.BiosApi; bios_options = $opts
+        disks = @($I.Disks | ForEach-Object { @{ style = $_.Style; media = $_.Media; size_gb = $_.SizeGB; system = $_.System } })
+    }
+    $path = Join-Path $script:Dir 'turbo_bios_report.json'
+    if ($script:DryRun) { Say "  [DRY] would write $path" DarkYellow; return }
+    try { ($rep | ConvertTo-Json -Depth 6) | Set-Content -Path $path -Encoding UTF8; Say "  Saved: $path" Green } catch { Add-ErrorRecord 'Save the BIOS report' $_; return }
+    Say '  It has no serial numbers or personal data. To help add support for your model, open github.com/Ebnhussein/TurboOpt/issues/new/choose, pick "BIOS report" and paste the file.' Gray
+}
 function Invoke-FirmwareReboot {
     Say '[ RESTART INTO BIOS SETTINGS ]' Cyan
     $fw = Get-FirmwareMode
@@ -2807,12 +3042,10 @@ function Invoke-FirmwareReboot {
         shutdown.exe /r /fw /t 5
         return
     }
-    $maker = ''; try { $maker = [string](Get-CimInstance Win32_ComputerSystem).Manufacturer } catch {}
+    $I = Get-BootInfo
+    $G = Get-BiosGuide $I
     Say '  This PC starts in legacy BIOS mode, so Windows cannot open the BIOS screen for you. Restart and press the key right after the power button:' Gray
-    $keys = @{ 'Dell' = 'F2 (F12 for the boot menu)'; 'HP' = 'F10 or Esc (F9 for the boot menu)'; 'Hewlett' = 'F10 or Esc (F9 for the boot menu)'; 'LENOVO' = 'F1 or F2 (Enter, then F1, on some models)'; 'ASUS' = 'Del or F2 (F8 for the boot menu)'; 'Acer' = 'F2 or Del'; 'MSI' = 'Del'; 'Gigabyte' = 'Del' }
-    $hit = $null
-    foreach ($k in $keys.Keys) { if ($maker -match $k) { $hit = $k } }
-    if ($hit) { Say ("  Your PC ({0}): {1}" -f $maker, $keys[$hit]) Green } else { Say '  Common keys: F2, Del, F10, F1, Esc. The maker logo screen usually shows it.' Gray }
+    Say ("  Your PC ({0} {1}): {2}   (boot menu: {3})" -f $I.Maker, $I.Model, $G.Enter, $G.BootMenu) Green
 }
 
 # ================================================================ AUTOMATION (scheduled checks) AND HTML REPORT
@@ -3132,7 +3365,10 @@ $script:MenuDef = @(
         @{ N = '24'; T = 'Switch to AHCI (prepare Windows)'; P = 'AHCI';                A = { Invoke-PrepareAhci } },
         @{ N = '25'; T = 'Convert MBR to GPT (advanced)'; P = 'MBR to GPT';          A = { Invoke-ConvertGpt } },
         @{ N = '26'; T = 'BIOS settings from Windows';    P = 'BIOS settings';       A = { Invoke-BiosSettings } },
-        @{ N = '27'; T = 'Restart into BIOS settings';    P = 'BIOS settings';       A = { Invoke-FirmwareReboot } }) }
+        @{ N = '27'; T = 'Restart into BIOS settings';    P = 'BIOS settings';       A = { Invoke-FirmwareReboot } },
+        @{ N = '28'; T = 'BIOS guide for this PC';        P = 'BIOS guide';          A = { Invoke-BiosGuide } },
+        @{ N = '29'; T = 'UEFI boot order';               P = 'UEFI boot order';     A = { Invoke-BootOrder } },
+        @{ N = '30'; T = 'Save a BIOS report to share';   P = 'BIOS report';         A = { Invoke-BiosDump } }) }
 )
 function Show-About {
     Say '  About Turbo Optimizer' White
@@ -3242,7 +3478,10 @@ function Start-SelfTest {
         @{ N = 'ahci';         A = { Invoke-PrepareAhci } },
         @{ N = 'gpt';          A = { Invoke-ConvertGpt } },
         @{ N = 'bios';         A = { Invoke-BiosSettings } },
-        @{ N = 'firmware';     A = { Invoke-FirmwareReboot } }
+        @{ N = 'firmware';     A = { Invoke-FirmwareReboot } },
+        @{ N = 'guide';        A = { Invoke-BiosGuide } },
+        @{ N = 'bootorder';    A = { Invoke-BootOrder } },
+        @{ N = 'biosdump';     A = { Invoke-BiosDump } }
     )
     $failed = 0
     foreach ($s in $steps) {

@@ -31,7 +31,7 @@ The Doctor in Arabic (right-to-left layout, 10 languages in total):
 - **Doctor: find and fix Windows problems.** Scans Windows Update, drivers, missing DLLs and runtimes, disk health, security settings and the event log, then fixes the items you pick.
 - **PC cleaner.** Temp files, Windows Update cache, browser caches, a disk space analyzer, TRIM for SSD and defrag for hard drives, and removal of preinstalled apps (debloat).
 - **Speed up Windows.** Performance power plan, startup manager (turn off or delay programs), optional services.
-- **Disk and boot.** Explains MBR vs GPT and BIOS vs UEFI for your PC, checks AHCI mode, TRIM and Windows 11 readiness, prepares Windows for AHCI, converts MBR to GPT with Windows' own tool (refuses on PCs that cannot start from UEFI), and can read and change some BIOS options from Windows on Lenovo, HP and Dell PCs that expose them (experimental; Dell needs Dell Command | Monitor installed). It cannot change the BIOS on other PCs: Windows has no standard way to do that.
+- **Disk and boot.** Explains MBR vs GPT and BIOS vs UEFI for your PC, checks AHCI mode, TRIM and Windows 11 readiness, prepares Windows for AHCI, converts MBR to GPT with Windows' own tool (refuses on PCs that cannot start from UEFI), shows the BIOS key and menu steps for your maker and model, manages the UEFI boot order, and can read and change some BIOS options from Windows on Lenovo, HP and Dell PCs that expose them (experimental; Dell needs Dell Command | Monitor or Dell Command | Configure). It cannot change the BIOS on other PCs: Windows has no standard way to do that, so it tells you exactly what to do in the BIOS menu instead.
 - **Update and repair.** App updates through winget, SFC and DISM, driver backup and restore.
 - **Network fixes.** Wi-Fi and Bluetooth hang fixes, DNS speed test and switch, hosts file check, Wi-Fi channel check.
 - **Security checks.** Firewall, SMBv1, Remote Desktop, UAC, and a reversible Windows Defender off / on / update.
@@ -132,7 +132,7 @@ All run in dry-run mode.
 
 ## Contributing
 
-Translations: edit only `app/TurboUI_strings.json` and open a pull request. If the automatic check passes, it is merged without waiting for anyone. Code changes are checked by CI and reviewed by the owner, because this tool runs as administrator. Details in [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+Translations (`app/TurboUI_strings.json`) and BIOS guides for your PC model (`app/bios-guides.json`): edit only those files and open a pull request. If the automatic check passes, it is merged without waiting for anyone. Code changes are checked by CI and reviewed by the owner, because this tool runs as administrator. Details in [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 If this tool helped you, a star on the repository helps others find it.
 

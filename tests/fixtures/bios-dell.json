@@ -1,0 +1,11 @@
+{
+  "note": "Shape of Dell Command | Monitor EnumerationAttribute rows. Synthetic example, not a dump of a real PC.",
+  "class": "EnumerationAttribute",
+  "rows": [
+    { "AttributeName": "SataOperation", "CurrentValue": ["Ahci"], "PossibleValues": ["Ahci", "RaidOn"] },
+    { "AttributeName": "SecureBoot", "CurrentValue": ["Enabled"], "PossibleValues": ["Enabled", "Disabled"] },
+    { "AttributeName": "UefiBootPathSecurity", "CurrentValue": ["AlwaysExceptInternalHdd"], "PossibleValues": ["Always", "AlwaysExceptInternalHdd", "Never"] },
+    { "AttributeName": "WlanRadio", "CurrentValue": ["Enabled"], "PossibleValues": ["Enabled", "Disabled"] }
+  ],
+  "expect": { "api": "Dell", "count_boot_related": 3, "sata_value": "Ahci", "sata_allowed": ["Ahci", "RaidOn"] }
+}
