@@ -1,5 +1,9 @@
 # Changelog
 
+## v12.4
+
+- BIOS settings from Windows now also change options on Dell PCs that have Dell Command | Monitor installed (read and write, using the values the BIOS itself allows). When a Dell PC does not expose its BIOS, the app says what is needed.
+
 ## v12.3
 
 - New Disk and boot section: a read-only check (boot mode, Secure Boot, TPM, SATA mode, TRIM, disks with MBR/GPT and SSD/HDD, Windows 11 readiness) with explanations, also part of the Doctor.

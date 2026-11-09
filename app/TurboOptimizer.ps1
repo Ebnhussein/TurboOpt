@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '12.3'
+$script:Version    = '12.4'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -2751,18 +2751,29 @@ function Set-BiosOption([string]$Vendor, [string]$Name, [string]$Value) {
         if ([int]$r.Return -ne 0) { throw "The BIOS answered with code $($r.Return) (a BIOS password may be set)" }
         return
     }
+    if ($Vendor -eq 'Dell') {
+        # Dell Command | Monitor's WMI provider: SetAttribute(SecType, SecHndCount, SecHandle, Name, Value); no BIOS admin password
+        $w = Get-WmiObject -Namespace 'root\dcim\sysman\biosattributes' -Class BIOSAttributeInterface -ErrorAction Stop
+        $r = $w.SetAttribute(0, 0, 0, $Name, $Value)
+        if ([int]$r.SetResult -ne 0) { throw "The BIOS answered with code $($r.SetResult) (a BIOS admin password may be set, or the value is not allowed)" }
+        return
+    }
     throw "Changing BIOS options is not supported for $Vendor PCs by this tool."
 }
 function Invoke-BiosSettings {
     Say '[ BIOS SETTINGS FROM WINDOWS (experimental) ]' Cyan
     $v = Get-BiosApi
-    if (-not $v) { Say '  This PC does not expose its BIOS to Windows (it needs a Lenovo, HP or Dell BIOS with the maker WMI interface). Change the options in the BIOS menu instead (see "Restart into BIOS settings").' Yellow; return }
+    if (-not $v) {
+        Say '  This PC does not expose its BIOS to Windows (it needs a Lenovo, HP or Dell BIOS with the maker WMI interface). Change the options in the BIOS menu instead (see "Restart into BIOS settings").' Yellow
+        $maker = ''; try { $maker = [string](Get-CimInstance Win32_ComputerSystem).Manufacturer } catch {}
+        if ($maker -match 'Dell') { Say '  Dell tip: newer Dell business PCs (Latitude, OptiPlex, Precision) expose it once "Dell Command | Monitor" is installed from dell.com/support. Older or home models (Inspiron, from before about 2014) usually cannot.' DarkGray }
+        return
+    }
     Say "  BIOS interface found: $v" Green
     $all = @(Get-BiosOptions $v | Where-Object { $_.Name -match 'SATA|AHCI|Secure ?Boot|Boot ?Mode|Legacy|UEFI|CSM|TPM|Fast ?Boot' })
     if ($all.Count -eq 0) { Say '  No boot-related options were found.' Yellow; return }
     $i = 0
     foreach ($o in $all) { $i++; Say ("  {0,2}. {1,-34} = {2}   [{3}]" -f $i, $o.Name, $o.Value, ($o.Allowed -join ' / ')) Gray }
-    if ($v -eq 'Dell') { Say '  Dell PCs can be read here but changing options needs Dell Command | Configure; use the BIOS menu to change them.' Yellow; return }
     $pick = 0
     if (-not [int]::TryParse((Read-Host '  Which one do you want to change? (number, Enter = none) [0]').Trim(), [ref]$pick) -or $pick -lt 1 -or $pick -gt $all.Count) { return }
     $o = $all[$pick - 1]
