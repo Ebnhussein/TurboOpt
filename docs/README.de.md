@@ -32,4 +32,4 @@ Keine Installation, keine Werbung, keine Telemetrie. Fügen Sie eine Zeile in Po
 irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
-Öffnen Sie PowerShell und fügen Sie diese Zeile ein. Das Werkzeug wird geladen, im Browser geöffnet und fragt, was Sie möchten (auch die automatische Pflege: wöchentliche Bereinigung oder tägliche Überwachung). Probieren Sie zuerst den **Testlauf**.
+Öffnen Sie PowerShell und fügen Sie diese Zeile ein. Das Werkzeug wird geladen, im Browser geöffnet und fragt, was Sie möchten (auch die automatische Pflege: wöchentliche Bereinigung oder tägliche Überwachung).

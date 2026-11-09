@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '12.1'
+$script:Version    = '12.2'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -2617,6 +2617,30 @@ function Invoke-AutomationMenu {
         '3' { Set-AutoCare 'monitor' }
     }
 }
+# ---- uninstall: removes the scheduled tasks, the saved data and (for the installed copy) the app folder ----
+$script:UninstallDone = $false
+function Invoke-Uninstall {
+    Say '[ UNINSTALL ]' Cyan
+    $inst = Join-Path $env:LOCALAPPDATA 'TurboOptimizer'
+    $isInstalled = ($script:Dir.TrimEnd('\') -ieq (Join-Path $inst 'app'))
+    if (-not (Ask '  Remove Turbo Optimizer from this PC? Its scheduled tasks and saved data (including the undo history) are deleted. Changes already made to Windows stay unless you undo them first.')) { Say '  Cancelled. Nothing was removed.' Yellow; return }
+    if ((Test-Path $script:Journal) -and (Ask '  First undo the changes this tool made to Windows?')) { Invoke-Revert }
+    foreach ($t in $script:TaskWeekly, $script:TaskMonitor, $script:TaskHealth) {
+        if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) { Invoke-Act "Remove the scheduled task $t" { Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction Stop } }
+    }
+    if (-not $isInstalled) {
+        Say '  This copy is not the installed one, so its folder is left in place. Delete the folder yourself when you do not need it.' Yellow
+        return
+    }
+    if ($script:DryRun) { Say "  [DRY] would delete $inst and close the app" DarkYellow; return }
+    $prof = Join-Path $env:TEMP 'turbo_optimizer_browser'
+    $cmd = "Wait-Process -Id $PID -ErrorAction SilentlyContinue; for (`$i = 0; `$i -lt 12; `$i++) { Start-Sleep -Seconds 2; Remove-Item -LiteralPath '$inst' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath '$prof' -Recurse -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath '$inst')) { break } }"
+    Start-Process powershell -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ('"{0}"' -f ($cmd -replace '"', '\"')))
+    Write-Log 'Uninstall requested: the app folder is removed after this window closes'
+    Say '  Turbo Optimizer is closing and will remove itself in a few seconds. Thank you for trying it.' Green
+    $script:UninstallDone = $true
+    if (Get-Variable -Name sync -ErrorAction SilentlyContinue) { try { $sync.Quit = $true } catch {} }
+}
 function Get-Ar([int[]]$Codes) { return (-join ($Codes | ForEach-Object { [string][char]$_ })) }
 function Export-HtmlReport([string]$Lang = 'en') {
     Say '[+] HTML report' Cyan
@@ -2790,8 +2814,20 @@ $script:MenuDef = @(
     @{ G = 'SAFETY AND TOOLS'; Items = @(
         @{ N = '19'; T = 'Create restore point';          P = 'Restore point';       A = { Invoke-RestorePoint } },
         @{ N = '20'; T = 'Revert recorded changes';       P = 'Revert';              A = { Invoke-Revert } },
-        @{ N = '21'; T = 'Automatic care (weekly / watch)'; P = 'Automation';          A = { Invoke-AutomationMenu } }) }
+        @{ N = '21'; T = 'Automatic care (weekly / watch)'; P = 'Automation';          A = { Invoke-AutomationMenu } },
+        @{ N = '22'; T = 'Uninstall Turbo Optimizer';     P = 'Uninstall';           A = { Invoke-Uninstall } }) }
 )
+function Show-About {
+    Say '  About Turbo Optimizer' White
+    Say ''
+    Say "  Version    $($script:Version)" Gray
+    Say '  What       Free Windows 10/11 optimizer, cleaner and repair tool.' Gray
+    Say '  Made by    Ebnhussein  (https://github.com/Ebnhussein)' Gray
+    Say '  Project    https://github.com/Ebnhussein/TurboOpt' Cyan
+    Say '  Privacy    No telemetry. It only goes online when you ask: updates, downloads, DNS tests.' Gray
+    Say '  License    MIT. Free and open source.' Gray
+    Say ''
+}
 function Show-Menu {
     Clear-Host
     Show-Brand
@@ -2825,7 +2861,7 @@ function Show-Menu {
     $dryTxt = 'Dry run: OFF'
     if ($script:DryRun) { $dryTxt = 'Dry run: ON' }
     $hasUi = Test-Path (Join-Path $script:Dir 'TurboOptimizerWeb.ps1')
-    $keys = @(@('D', $dryTxt), @('L', 'Log'), @('R', 'Problems'), @('C', 'Config'))
+    $keys = @(@('D', $dryTxt), @('L', 'Log'), @('R', 'Problems'), @('C', 'Config'), @('A', 'About'))
     if ($hasUi) { $keys += , @('U', 'Open in browser') }
     $keys += , @('0', 'Exit')
     foreach ($k in $keys) {
@@ -2953,12 +2989,13 @@ while ($true) {
     $choice = (Read-Host ((Get-Glyph 'arrow') + ' Select')).Trim().ToUpper()
     $item = $null
     foreach ($g in $script:MenuDef) { foreach ($it in $g.Items) { if ($it.N -eq $choice) { $item = $it } } }
-    if ($item) { Show-Page $item.P; & $item.A; Pause-Menu; continue }
+    if ($item) { Show-Page $item.P; & $item.A; if ($script:UninstallDone) { Start-Sleep -Seconds 2; exit 0 }; Pause-Menu; continue }
     switch ($choice) {
         'D'  { $script:DryRun = -not $script:DryRun; Write-Log "DryRun set to $($script:DryRun)" }
         'L'  { if (Test-Path $script:LogFile) { Start-Process notepad $script:LogFile } }
         'R'  { if (Test-Path $script:ErrFile) { Start-Process notepad $script:ErrFile } else { Say 'No problems have been recorded yet.' Green; Start-Sleep -Seconds 2 } }
         'C'  { Start-Process notepad $script:ConfigFile; Read-Host 'Save the config, then press Enter to reload' | Out-Null; $script:Cfg = Read-Config }
+        'A'  { Show-Page 'About'; Show-About; Pause-Menu }
         'U'  {
             $m = Show-Launcher
             if ($m -ne 'console') { if (Start-Ui $m) { Write-Log 'Script exited (opened the UI)'; exit 0 } }

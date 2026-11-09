@@ -34,7 +34,7 @@ The Doctor in Arabic (right-to-left layout, 10 languages in total):
 - **Update and repair.** App updates through winget, SFC and DISM, driver backup and restore.
 - **Network fixes.** Wi-Fi and Bluetooth hang fixes, DNS speed test and switch, hosts file check, Wi-Fi channel check.
 - **Security checks.** Firewall, SMBv1, Remote Desktop, UAC, and a reversible Windows Defender off / on / update.
-- **Safety first.** Dry-run mode, restore point, an undo journal for every change.
+- **Safety first.** Asks before risky steps, restore point, an undo journal for every change, a console dry-run mode (press D) that changes nothing, and an Uninstall button inside the app.
 - **Automatic care (optional).** Weekly cleanup, or a daily watch that fixes only safe, reversible problems (temp files, clock sync, DNS cache, Defender definitions, stopped services) and sends a notification when something serious needs you.
 
 It asks before closing any program. If you say no, that step is skipped.
@@ -45,7 +45,7 @@ It asks before closing any program. If you say no, that step is skipped.
 2. It downloads the latest release (checksum verified), keeps it in `%LOCALAPPDATA%\TurboOptimizer`, and opens the app in your browser (Edge, or Chrome if Edge is missing). Windows asks once for administrator rights.
 3. On the first run it asks whether you want **automatic care**: *Not now*, *Weekly cleanup*, or *Watch and fix* (a daily check that fixes only safe problems and notifies you about the rest). You can change it any time in Safety and tools.
 
-Run the same line again to update; your settings and undo history are kept. Prefer an offline copy? Download `TurboOptimizer-v….zip` from [Releases](https://github.com/Ebnhussein/TurboOpt/releases/latest), unzip it, and double-click `Start Turbo Optimizer.bat` (a console menu is also available there).
+When it starts it asks whether you want the browser app or the console. Run the same line again to update; your settings and undo history are kept. To remove everything, use Uninstall inside the app (Safety and tools) or console option 22. Prefer an offline copy? Download `TurboOptimizer-v….zip` from [Releases](https://github.com/Ebnhussein/TurboOpt/releases/latest), unzip it, and double-click `Start Turbo Optimizer.bat` (a console menu is also available there).
 
 ## Requirements
 
@@ -60,7 +60,7 @@ Run the same line again to update; your settings and undo history are kept. Pref
 irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
-Switch on **Dry run** at the top of the app first to see what would happen without changing anything. Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `app\TurboOptimizer.bat`.
+Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `app\TurboOptimizer.bat`.
 
 ## Common problems it helps with
 
@@ -81,7 +81,7 @@ Switch on **Dry run** at the top of the app first to see what would happen witho
 
 ## Safety
 
-- Dry run mode describes every action and changes nothing.
+- In the console, Dry run (press D, or start with `-DryRun`) describes every action and changes nothing.
 - A restore point can be created before bigger changes.
 - Changes are written to `turbo_undo.json`; the Revert option reverses them.
 - Defender can be turned off and back on. Windows Tamper Protection may block this; the tool tells you when it does.
@@ -95,7 +95,7 @@ English, Arabic, Spanish, French, German, Portuguese, Russian, Chinese (Simplifi
 
 ## FAQ
 
-**Is it safe?** It changes nothing in Dry run mode, asks before risky steps, creates restore points on request, and records every change in an undo journal. You can read the whole source: it is plain PowerShell.
+**Is it safe?** It asks before risky steps, creates restore points on request, and records every change in an undo journal, and can remove itself completely (Safety and tools, Uninstall). You can read the whole source: it is plain PowerShell.
 
 **Does it speed up my PC?** It removes junk, trims startup, and fixes configuration problems. How much that helps depends on your machine. It does not overclock or tweak hidden settings.
 

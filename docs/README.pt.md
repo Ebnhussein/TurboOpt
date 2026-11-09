@@ -32,4 +32,4 @@ Sem instalador, sem anúncios, sem telemetria. Cole uma linha no PowerShell: a f
 irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
-Abra o PowerShell e cole esta linha. A ferramenta é baixada, abre no navegador e pergunta o que você quer (inclusive o cuidado automático: limpeza semanal ou vigilância diária). Experimente primeiro o **modo de teste**.
+Abra o PowerShell e cole esta linha. A ferramenta é baixada, abre no navegador e pergunta o que você quer (inclusive o cuidado automático: limpeza semanal ou vigilância diária).

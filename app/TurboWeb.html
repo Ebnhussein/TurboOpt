@@ -133,6 +133,7 @@ main{flex:1;min-width:0;overflow:auto;padding:22px 26px 28px;display:flex;flex-d
 .logbox>summary{list-style:none;cursor:pointer;padding:12px 18px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:8px;min-height:44px}
 .logbox>summary::-webkit-details-marker{display:none}
 .logbox[open]>summary{border-bottom:1px solid var(--line)}
+.lognote{padding:8px 18px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
 #log{max-height:42vh;overflow:auto;background:#0d1117;color:#ccc;padding:12px 16px;font:12.5px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;word-break:break-word;direction:ltr;text-align:left;unicode-bidi:plaintext}
 #log:empty::before{content:"...";color:#667}
 
@@ -193,17 +194,15 @@ table.lst .cmd{color:var(--muted);font-size:12.5px;direction:ltr;unicode-bidi:pl
 <body>
 <header class="top">
   <div class="brand"><span class="logo" id="logo"></span><span id="appName">Turbo Optimizer</span></div>
-  <label class="switch"><input type="checkbox" id="dry"><span class="track"></span><span id="dryL"></span></label>
   <label class="lang"><span id="langL"></span><select id="lang" aria-label="Language"></select></label>
 </header>
-<div class="banner" id="banner" role="status"></div>
 <div class="shell">
   <nav class="side" id="side" aria-label="Sections"></nav>
   <main id="main">
     <div class="wrap">
       <section class="task" id="task" aria-live="polite"></section>
       <div id="view"></div>
-      <details class="logbox" id="logbox"><summary id="logsum"></summary><div id="log" role="log"></div></details>
+      <details class="logbox" id="logbox"><summary id="logsum"></summary><div class="lognote" id="lognote"></div><div id="log" role="log"></div></details>
     </div>
   </main>
 </div>
@@ -227,8 +226,16 @@ const P = {
   sliders:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4', back:'M15 6l-6 6 6 6', wrench:'M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 3 11.4 11.4 3z'
 };
 function icon(n,cls){return '<svg class="i '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true"><path d="'+(P[n]||P.info)+'"/></svg>';}
-const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_auto:'update',act_restore:'safety',act_revert:'back'};
+const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_auto:'update',act_uninstall:'trash',act_restore:'safety',act_revert:'back'};
 const COLORS = {Black:'#cccccc',DarkBlue:'#5c8dff',DarkGreen:'#3fb950',DarkCyan:'#39c5cf',DarkRed:'#ff6b6b',DarkMagenta:'#d2a8ff',DarkYellow:'#d29922',Gray:'#cccccc',DarkGray:'#8b949e',Blue:'#79c0ff',Green:'#56d364',Cyan:'#56d4dd',Red:'#ff7b72',Magenta:'#d2a8ff',Yellow:'#e3b341',White:'#ffffff'};
+const PROMPTS=[
+ [/^\s*Close (.+?) now\? Unsaved work/,'p_close'],[/^\s*Create a restore point first\?/,'p_restore'],[/^\s*Continue\?/,'p_continue'],[/^\s*Delete these files\?/,'p_delete'],
+ [/^\s*Run the full optimization\?/,'p_full'],[/^\s*Disable (.+?)\?/,'p_disable'],[/^\s*Download about (.+?) MB from Windows Update/,'p_wu'],
+ [/^\s*Download and install (.+?) from Microsoft/,'p_winget'],[/^\s*Revert all of these/,'p_revert'],[/^\s*Restart Windows now\?/,'p_restart'],
+ [/^\s*Scan again to confirm\?/,'p_rescan'],[/^\s*Wi-Fi will drop for a few seconds/,'p_wifi'],[/^\s*Bluetooth devices will disconnect/,'p_bt'],
+ [/^\s*First undo the changes this tool made/,'p_undofirst'],[/^\s*Remove Turbo Optimizer from this PC\?/,'p_uninstall'],
+ [/^\s*Open it in your browser\?/,'p_openreport'],[/^\s*Back up the drivers now\?/,'p_drvbackup']];
+function trPrompt(t){ for(const [re,k] of PROMPTS){ const m=t.match(re); if(m) return fmt(T(k),...m.slice(1)); } return t; }
 function T(k){const l=BOOT.S[lang];if(l&&l[k]!==undefined)return l[k];return BOOT.S.en[k]!==undefined?BOOT.S.en[k]:k;}
 function fmt(s,...a){return s.replace(/\{(\d+)\}/g,(m,i)=>a[i]);}
 async function api(path,body){
@@ -248,7 +255,7 @@ function applyLang(){
   const rtl=(BOOT.S[lang]||{})._rtl==='1';
   document.documentElement.dir=rtl?'rtl':'ltr'; document.documentElement.lang=lang;
   document.title=T('app'); $('appName').textContent=T('app'); $('logo').innerHTML=icon('speed');
-  $('dryL').textContent=T('dry'); $('langL').textContent=T('lang'); $('banner').innerHTML=icon('info')+' '+T('preview_on');
+  $('langL').textContent=T('lang'); $('lognote').textContent=T('note_log');
   const sel=$('lang'); sel.innerHTML='';
   for(const code in BOOT.S){const o=el('option',{value:code,text:BOOT.S[code]._name}); if(code===lang)o.selected=true; sel.append(o);}
   buildSide(); renderTask(); render(); setLogSummary();
@@ -262,11 +269,11 @@ function buildSide(){
     b.disabled=busy; b.onclick=()=>{ if(view==='results'||view==='startup') closeDialog(); cat=c.id; view=c.id==='home'?'home':'cat'; buildSide(); render(); $('main').scrollTop=0; };
     s.append(b);
   }
-  s.append(el('div',{class:'spacer'}), el('div',{class:'foot',text:T('trust')}));
+  const ab=el('button',{class:'nav',html:icon('info')+'<span class="t"></span>'}); ab.querySelector('.t').textContent=T('about'); ab.title=T('about'); ab.onclick=aboutModal;
+  s.append(el('div',{class:'spacer'}), ab, el('div',{class:'foot',text:T('trust')}));
 }
 function setLogSummary(){ $('logsum').innerHTML=icon('chev','flip')+' '; $('logsum').append(document.createTextNode($('logbox').open?T('hide_details'):T('show_details'))); }
 $('logbox').addEventListener('toggle',setLogSummary);
-$('dry').addEventListener('change',()=>$('banner').classList.toggle('on',$('dry').checked));
 
 // ---------------------------------------------------------------- views
 function render(){
@@ -299,7 +306,7 @@ function renderHome(v){
   const stats=el('div',{class:'stats'});
   stats.append(stat(T('stat_free'),free), stat(T('stat_ram'),ram==null?'...':ram+' %',ram==null?null:ram), stat(T('stat_startup'),String(st)));
   v.append(stats);
-  if(info) v.append(el('div',{class:'pcline',text:(info.Vendor||'')+' '+(info.Model||'')+'  |  '+(info.Caption||'')+' ('+info.Build+')  |  '+(info.VM?'VM':(info.Laptop?'laptop':'desktop'))}));
+  if(info) v.append(el('div',{class:'pcline',text:(info.Vendor||'')+' '+(info.Model||'')+'  |  '+(info.Caption||'')+' ('+info.Build+')  |  '+T(info.VM?'kind_vm':(info.Laptop?'kind_laptop':'kind_desktop'))}));
   // quick actions
   v.append(el('h2',{class:'h2',text:T('quick')}));
   const t=el('div',{class:'tiles'});
@@ -479,10 +486,25 @@ function inputModal(text,def){
 }
 async function handlePrompt(p){
   lastPromptId=p.id; let v;
-  if(p.k==='ask') v=await askModal(p.t);
+  if(p.k==='ask') v=await askModal(trPrompt(p.t));
   else if(p.mode==='all') v=(await askModal(T('msg_clean_all')))?'A':'';
   else v=await inputModal(p.t,p.def);
   try{ await api('/api/answer',{id:p.id,value:v}); }catch(e){ toast(e.message); }
+}
+function aboutModal(){
+  const link=el('a',{href:'https://github.com/Ebnhussein/TurboOpt',target:'_blank',rel:'noopener',text:'github.com/Ebnhussein/TurboOpt'}); link.style.cssText='color:var(--accent);direction:ltr;unicode-bidi:plaintext';
+  const by=el('a',{href:'https://github.com/Ebnhussein',target:'_blank',rel:'noopener',text:'Ebnhussein'}); by.style.cssText='color:var(--accent)';
+  const close=el('button',{class:'btn primary',text:T('dlg_close')});
+  const box=el('div',null,el('h2',{text:T('app')}),
+    el('div',{class:'mb',style:'white-space:normal;display:flex;flex-direction:column;gap:8px'},
+      el('div',{text:T('about_desc')}),
+      el('div',{text:fmt(T('about_ver'),BOOT.version||'')}),
+      el('div',null,document.createTextNode(T('about_by')+' '),by),
+      el('div',null,document.createTextNode(T('about_site')+': '),link),
+      el('div',{style:'color:var(--muted);font-size:13px',text:T('about_privacy')}),
+      el('div',{style:'color:var(--muted);font-size:13px',text:T('about_license')})),
+    el('div',{class:'mf'},close));
+  close.onclick=hideModal; showModal(box,hideModal); close.focus();
 }
 async function autoModal(first){
   let cur='off'; try{ const r=await api('/api/auto'); cur=r.mode; }catch(e){}
@@ -496,7 +518,7 @@ async function autoModal(first){
   const ok=el('button',{class:'btn primary',text:T('auto_save')}), cn=el('button',{class:'btn',text:T('dlg_cancel')});
   const leave=async()=>{ hideModal(); if(first){ try{ await api('/api/auto',{mode:'skip'}); }catch(e){} } };
   cn.onclick=leave;
-  ok.onclick=async()=>{ const mode=box.querySelector('input:checked').value; hideModal(); try{ await api('/api/auto',{mode,dry:$('dry').checked}); }catch(e){ toast(e.status===409?T('working'):e.message); } poll(); };
+  ok.onclick=async()=>{ const mode=box.querySelector('input:checked').value; hideModal(); try{ await api('/api/auto',{mode}); }catch(e){ toast(e.status===409?T('working'):e.message); } poll(); };
   showModal(el('div',null,el('h2',{text:first?T('auto_q'):T('act_auto')}),el('div',{class:'mb'},box),el('div',{class:'note',text:T('auto_note')}),el('div',{class:'mf'},cn,ok)),leave);
   ok.focus();
 }
@@ -515,7 +537,7 @@ async function runAction(a){
   if(busy||modalOpen) return;
   if(a.special==='dns'){ dnsModal(); return; }
   if(a.special==='auto'){ autoModal(false); return; }
-  try{ await api('/api/run',{id:a.k,dry:$('dry').checked,lang}); }catch(e){ toast(e.status===409?T('working'):e.message); }
+  try{ await api('/api/run',{id:a.k,lang}); }catch(e){ toast(e.status===409?T('working'):e.message); }
   poll();
 }
 $('lang').onchange=async e=>{ lang=e.target.value; try{ await api('/api/lang',{lang}); }catch(x){} applyLang(); };
@@ -535,7 +557,7 @@ async function poll(){
     renderTask();
     if(r.prompt&&r.prompt.id!==lastPromptId&&!modalOpen) handlePrompt(r.prompt);
     if(r.dialog&&r.dialog.id!==lastDialogId&&!modalOpen){ lastDialogId=r.dialog.id; if(r.dialog.k==='findings') openResults(r.dialog); else openStartup(r.dialog); }
-  }catch(e){ if(++offline===8) toast('Connection to the engine lost'); }
+  }catch(e){ if(++offline===8) toast(T('lost')); }
   finally{ polling=false; }
 }
 // documentation screenshots: open the page with #demo (sample results) or #demo-home (generic device name)

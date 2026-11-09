@@ -17,8 +17,19 @@ $stage = Join-Path $dist "stage\TurboOptimizer-$Tag"
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $stage 'app') | Out-Null
 
-$appFiles = 'TurboOptimizer.ps1', 'TurboOptimizerWeb.ps1', 'TurboWeb.html', 'TurboUI_strings.json', 'config.ini'
+$appFiles = 'TurboOptimizer.ps1', 'TurboOptimizerWeb.ps1', 'config.ini'
 foreach ($f in $appFiles) { Copy-Item (Join-Path $root "app\$f") (Join-Path $stage 'app') }
+# the page and the translations travel inside the web script, so the user gets 3 files, not 5
+$webPath = Join-Path $stage 'app\TurboOptimizerWeb.ps1'
+$web = [System.IO.File]::ReadAllText($webPath)
+$b64s = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes((Join-Path $root 'app\TurboUI_strings.json')))
+$b64h = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes((Join-Path $root 'app\TurboWeb.html')))
+$mS = [regex]::new("(?m)^\`$EmbeddedStrings = ''")
+$mH = [regex]::new("(?m)^\`$EmbeddedHtml = ''")
+if (-not $mS.IsMatch($web) -or -not $mH.IsMatch($web)) { throw 'The web script has no embed markers' }
+$web = $mS.Replace($web, { param($m) '$EmbeddedStrings = ''' + $b64s + '''' }, 1)
+$web = $mH.Replace($web, { param($m) '$EmbeddedHtml = ''' + $b64h + '''' }, 1)
+[System.IO.File]::WriteAllText($webPath, $web, (New-Object System.Text.UTF8Encoding($false)))
 Copy-Item (Join-Path $root 'LICENSE') $stage
 
 # the single launcher the user sees
@@ -42,8 +53,7 @@ HOW TO USE
 3. The app opens in your browser. On the first run it asks if you want automatic care (weekly cleanup, or a daily watch that fixes safe problems).
 
 FIRST TIME
-Switch on "Dry run" at the top of the app (or press D in the console). The tool then only
-describes what it would do and changes nothing. Try the Doctor first.
+Try the Doctor first: it only looks and shows what it found. Nothing changes until you confirm.
 
 SAFE TO TRY
 - It asks before closing any program.
@@ -54,8 +64,8 @@ REQUIREMENTS
 Windows 10 (1809 or newer) or Windows 11. For the browser version: Microsoft Edge or Google Chrome.
 
 REMOVE
-Delete this folder. The tool installs nothing. Scheduled tasks you created inside it can be
-removed from the Safety menu first.
+Open Safety and tools, then Uninstall (console: option 22). It removes the scheduled tasks and
+the saved data. Then delete this folder. The tool installs nothing else.
 
 Languages: English, Arabic, Spanish, French, German, Portuguese, Russian, Chinese, Hindi, Turkish.
 License: MIT (see LICENSE).
@@ -78,7 +88,7 @@ $zip.Dispose(); $fs.Dispose()
 $cl = Get-Content (Join-Path $root 'docs\CHANGELOG.md') -Raw
 $m = [regex]::Match($cl, "(?ms)^## v$([regex]::Escape($ver))\s*\r?\n(.*?)(?=^## v|\z)")
 $body = if ($m.Success) { $m.Groups[1].Value.Trim() } else { 'See the changelog.' }
-$notes = "**Easiest:** open PowerShell and paste ``irm https://ebnhussein.github.io/TurboOpt/i.txt | iex``.`n`n**Or download ``TurboOptimizer-$Tag.zip`` below** (not the 'Source code' files), unzip it, and double-click ``Start Turbo Optimizer.bat``. Windows 10 (1809+) or Windows 11. Switch on Dry run first to change nothing.`n`n$body"
+$notes = "**Easiest:** open PowerShell and paste ``irm https://ebnhussein.github.io/TurboOpt/i.txt | iex``.`n`n**Or download ``TurboOptimizer-$Tag.zip`` below** (not the 'Source code' files), unzip it, and double-click ``Start Turbo Optimizer.bat``. Windows 10 (1809+) or Windows 11. Nothing changes until you confirm.`n`n$body"
 [System.IO.File]::WriteAllText((Join-Path $dist 'notes.md'), $notes, (New-Object System.Text.UTF8Encoding($false)))
 $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
 [System.IO.File]::WriteAllText("$zipPath.sha256", "$hash  TurboOptimizer-$Tag.zip`n", [System.Text.Encoding]::ASCII)

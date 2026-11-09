@@ -32,4 +32,4 @@ Kurulum yok, reklam yok, telemetri yok. PowerShell'e tek satır yapıştırın: 
 irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
-PowerShell'i açın ve bu satırı yapıştırın. Araç indirilir, tarayıcıda açılır ve ne istediğinizi sorar (otomatik bakım dahil: haftalık temizlik veya günlük izleme). Önce **deneme modunu** deneyin.
+PowerShell'i açın ve bu satırı yapıştırın. Araç indirilir, tarayıcıda açılır ve ne istediğinizi sorar (otomatik bakım dahil: haftalık temizlik veya günlük izleme).

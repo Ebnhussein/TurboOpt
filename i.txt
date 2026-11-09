@@ -64,6 +64,9 @@ try {
         if ($f.Name -eq 'config.ini' -and (Test-Path $dest)) { continue }     # keep the user's own settings
         Copy-Item $f.FullName $dest -Force
     }
+    foreach ($old in 'TurboWeb.html', 'TurboUI_strings.json') {      # older versions kept these as separate files; newer ones carry them inside the app
+        if (-not (Test-Path (Join-Path $src.FullName $old))) { Remove-Item (Join-Path $appDir $old) -Force -ErrorAction SilentlyContinue }
+    }
     Get-ChildItem $appDir -File | ForEach-Object { try { Unblock-File $_.FullName } catch {} }
     Say ("  Installed {0} in {1}" -f $tag, $appDir) Green
 } catch {
@@ -77,8 +80,13 @@ if ($env:TURBO_NOLAUNCH -eq '1') { return }
 
 $engine = Join-Path $appDir 'TurboOptimizer.ps1'
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-Say '  Opening Turbo Optimizer in your browser (it needs administrator rights)...' Cyan
-$a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ('"{0}"' -f $engine), '-Browser')
-if ($isAdmin) { Start-Process powershell -ArgumentList $a } else { Start-Process powershell -Verb RunAs -ArgumentList $a }
-Say '  To open it again later: the same command, or the file above.' DarkGray
+Say '  Starting Turbo Optimizer (it needs administrator rights)...' Cyan
+if ($isAdmin) {
+    # already elevated: ask here, in this window, whether to use the browser app or the console
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $engine
+} else {
+    # a new elevated window opens and asks the same question
+    Start-Process powershell -Verb RunAs -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $engine))
+}
+Say '  To open it again later, run the same command.' DarkGray
 Say ''

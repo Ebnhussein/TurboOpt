@@ -11,6 +11,12 @@ $ErrorActionPreference = 'Continue'
 $here = $PSScriptRoot
 $corePath = Join-Path $here 'TurboOptimizer.ps1'
 $stringsPath = Join-Path $here 'TurboUI_strings.json'
+$EmbeddedStrings = ''   # base64, filled in by tools/build-release.ps1 for the user package
+$EmbeddedHtml = ''      # base64, filled in by tools/build-release.ps1 for the user package
+function Get-Embedded([string]$B64, [string]$Path) {
+    if ($B64) { return [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($B64)) }
+    return [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
+}
 $htmlPath = Join-Path $here 'TurboWeb.html'
 $prefPath = Join-Path $here 'turbo_ui.json'
 $errFile = Join-Path $here 'turbo_ui_errors.log'
@@ -25,12 +31,12 @@ if (-not $Test -and -not $NoBrowser -and -not (Test-Admin)) {   # -NoBrowser = d
     Start-Process powershell -Verb RunAs -ArgumentList $a
     exit
 }
-foreach ($f in $corePath, $stringsPath, $htmlPath) {
-    if (-not (Test-Path $f)) { Write-Output "Missing file: $f"; exit 1 }
-}
+if (-not (Test-Path $corePath)) { Write-Output "Missing file: $corePath"; exit 1 }
+if (-not $EmbeddedStrings -and -not (Test-Path $stringsPath)) { Write-Output "Missing file: $stringsPath"; exit 1 }
+if (-not $EmbeddedHtml -and -not (Test-Path $htmlPath)) { Write-Output "Missing file: $htmlPath"; exit 1 }
 
 # ---------------------------------------------------------------- languages
-$S = [System.IO.File]::ReadAllText($stringsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+$S = (Get-Embedded $EmbeddedStrings $stringsPath) | ConvertFrom-Json
 $script:Lang = 'en'
 if (Test-Path $prefPath) { try { $p = Get-Content $prefPath -Raw | ConvertFrom-Json; if ($p.Lang -and $S.PSObject.Properties[$p.Lang]) { $script:Lang = [string]$p.Lang } } catch {} }
 
@@ -166,6 +172,7 @@ $Categories = @(
         @{ K = 'act_restore'; D = 'd_restore'; Cmd = 'Invoke-RestorePoint' },
         @{ K = 'act_revert'; D = 'd_revert'; Cmd = 'Invoke-Revert' },
         @{ K = 'act_auto'; D = 'd_auto'; Special = 'auto' },
+        @{ K = 'act_uninstall'; D = 'd_uninstall'; Cmd = 'Invoke-Uninstall' },
         @{ K = 'act_open_log'; D = 'd_open_log'; Special = 'open_log' },
         @{ K = 'act_open_problems'; D = 'd_open_problems'; Special = 'open_problems' },
         @{ K = 'act_open_config'; D = 'd_open_config'; Special = 'open_config' }) }
@@ -302,9 +309,11 @@ foreach ($c in $Categories) {
     foreach ($a in $c.Actions) { $acts += @{ k = $a.K; d = $a.D; special = [string]$a.Special } }
     $catsOut += @{ id = $c.Id; k = $c.K; actions = $acts }
 }
-$htmlTemplate = [System.IO.File]::ReadAllText($htmlPath, [System.Text.Encoding]::UTF8)
+$htmlTemplate = Get-Embedded $EmbeddedHtml $htmlPath
+$appVersion = ''
+try { $vm = [regex]::Match([System.IO.File]::ReadAllText($corePath), '(?m)^\$script:Version\s*=\s*''([^'']+)'''); if ($vm.Success) { $appVersion = $vm.Groups[1].Value } } catch {}
 function Get-Page {
-    $boot = ConvertTo-Json -InputObject @{ token = $token; lang = $script:Lang; S = $S; cats = $catsOut } -Depth 8 -Compress
+    $boot = ConvertTo-Json -InputObject @{ token = $token; lang = $script:Lang; S = $S; cats = $catsOut; version = $appVersion } -Depth 8 -Compress
     $boot = $boot.Replace('<', '<').Replace('>', '>').Replace('&', '&')
     return $htmlTemplate.Replace('__BOOT__', $boot)
 }
@@ -576,6 +585,7 @@ try {
             Update-Engine
             $now = Get-Date
             if ($Test -and $res.Done) { $script:Quit = $true }
+            if ($sync.Quit -and -not $script:Busy) { Start-Sleep -Seconds 2; $script:Quit = $true }
             if (-not $script:Busy -and -not $script:Prompt) {
                 if ($script:ByeAt -and $now -gt $script:ByeAt) { $script:Quit = $true }
                 if ($script:Browser -and $script:Browser.HasExited -and ($now - $script:LastSeen).TotalSeconds -gt 5) { $script:Quit = $true }
@@ -593,6 +603,7 @@ try {
         }
     }
 } finally {
+    try { if ($script:Browser -and -not $script:Browser.HasExited) { [void]$script:Browser.CloseMainWindow() } } catch {}
     try { $listener.Stop(); $listener.Close() } catch {}
     try { if ($script:CurPs) { [void]$script:CurPs.BeginStop($null, $null) }; $sync.Evt.Set(); $rs.Close(); $infoRs.Close() } catch {}
 }

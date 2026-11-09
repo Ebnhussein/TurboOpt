@@ -1,5 +1,14 @@
 # Changelog
 
+## v12.2
+
+- Uninstall from inside the app (Safety and tools, or console option 22): offers to undo the changes first, removes the scheduled tasks, closes the app and deletes its own folder and data.
+- About screen in the app (sidebar) and in the console (key A): version, author, project link, privacy.
+- The install command now asks whether to open the browser app or stay in the console.
+- The Dry run switch was removed from the app (the console keeps it: key D or -DryRun).
+- Language check: questions the engine asks (close an app, restore point, delete, restart...) are shown in the chosen language, plus the connection message and device type; a note says the log stays in English.
+- The user package now carries the page and the translations inside the web script: 3 files in the app folder instead of 5. The source downloads from GitHub leave out tests, tools, docs and screenshots.
+
 ## v12.1
 
 - Shorter install command: `irm https://ebnhussein.github.io/TurboOpt/i.txt | iex` (the old raw link still works).
