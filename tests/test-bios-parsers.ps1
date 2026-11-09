@@ -101,6 +101,19 @@ $old = [pscustomobject]@{ Firmware = 'BIOS'; SecureBoot = 'unsupported'; TpmSpec
 Check 'win11: an old PC lists BIOS, TPM and CPU' ((Get-Win11Blockers $old).Count -eq 3)
 Check 'cpu generation parsing' ((Get-CpuGeneration 'Intel(R) Core(TM) i5-2450M') -eq 2 -and (Get-CpuGeneration '12th Gen Intel(R) Core(TM) i5-12400') -eq 12 -and (Get-CpuGeneration 'AMD Ryzen 5 3600 6-Core') -eq 3 -and (Get-CpuGeneration 'Intel(R) Core(TM) i7-1165G7') -eq 11 -and (Get-CpuGeneration 'Intel(R) Core(TM) i5-1035G1') -eq 10 -and (Get-CpuGeneration 'Intel(R) Core(TM) i7-8550U') -eq 8 -and (Get-CpuGeneration 'Intel(R) Core(TM) i7-1260P') -eq 12)
 
+# ---- unattended runs (self-test, scheduled watch, CI on a UEFI machine) must never wait for an answer
+function Read-Host { param($p) throw 'a prompt was shown in an unattended run' }
+function Get-FirmwareMode { 'UEFI' }
+function Get-FirmwareBootEntries { ConvertFrom-BcdFirmware $en }
+$script:AutoYes = $true; $script:DryRun = $true
+$ok = $true; try { Invoke-BootOrder | Out-Null } catch { $ok = $false }
+Check 'boot order: no prompt when unattended' $ok
+$script:Fx = Get-Content (Join-Path (Join-Path $PSScriptRoot 'fixtures') 'bios-hp.json') -Raw | ConvertFrom-Json
+$ok = $true; try { Invoke-BiosSettings | Out-Null } catch { $ok = $false }
+Check 'BIOS settings: lists but does not prompt when unattended' $ok
+$script:Fx = $null
+Remove-Item Function:\Read-Host, Function:\Get-FirmwareMode, Function:\Get-FirmwareBootEntries
+
 if ($script:fails -gt 0) { Write-Output "$script:fails check(s) failed"; exit 1 }
 Write-Output 'all BIOS and boot checks passed'
 exit 0

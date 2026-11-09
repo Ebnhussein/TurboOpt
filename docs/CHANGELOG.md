@@ -1,5 +1,9 @@
 # Changelog
 
+## v12.6
+
+- Fix: the new BIOS actions (boot order, BIOS settings, Dell tool, conversion to GPT) no longer wait for an answer when the tool runs unattended (self-test, scheduled watch, automated checks on a UEFI PC). Added tests for that.
+
 ## v12.5
 
 - BIOS guide for this PC: the key to press and the menu steps (AHCI, UEFI, Secure Boot) for your maker and model, from a data file anyone can extend by pull request (merged automatically after validation).

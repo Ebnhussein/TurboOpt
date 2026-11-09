@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '12.5'
+$script:Version    = '12.6'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -2819,6 +2819,7 @@ function Invoke-ConvertGpt {
     Say '  - After the conversion Windows will NOT start until the BIOS is switched to UEFI (and Legacy/CSM turned off).' Yellow
     Show-GuideSteps (Get-BiosGuide $I) @('uefi')
     if ($script:DryRun) { Say '  [DRY] would run: mbr2gpt /convert' DarkYellow; return }
+    if ($script:AutoYes -or $script:Unattended) { Say '  Needs a person to type CONVERT. Nothing was changed.' Yellow; return }
     if ((Read-Host '  Type CONVERT (capital letters) to continue, anything else cancels').Trim() -cne 'CONVERT') { Say '  Cancelled. Nothing was changed.' Yellow; return }
     Write-Log "mbr2gpt convert disk $($sys.Number)"
     $c = (cmd.exe /c "`"$tool`" /convert /disk:$($sys.Number) /allowFullOS 2>&1") -join "`n"
@@ -2869,6 +2870,7 @@ function Invoke-BootOrder {
     if ($f.Entries.Count -eq 0) { Say '  No firmware boot entries were found.' Yellow; return }
     $i = 0
     foreach ($e in $f.Entries) { $i++; $pos = [array]::IndexOf($f.Order, $e.Id); $tag = ''; if ($pos -ge 0) { $tag = "   (position $($pos + 1) in the boot order)" }; Say ("  {0,2}. {1}{2}" -f $i, $e.Description, $tag) Gray }
+    if ($script:AutoYes -or $script:Unattended) { return }      # choosing needs a person
     $pick = 0
     if (-not [int]::TryParse((Read-Host '  Which entry? (number, Enter = none) [0]').Trim(), [ref]$pick) -or $pick -lt 1 -or $pick -gt $f.Entries.Count) { return }
     $e = $f.Entries[$pick - 1]
@@ -2950,6 +2952,7 @@ function Invoke-DellCctk {
     $I = Get-BootInfo
     if ($I.Maker -notmatch 'Dell') { return $false }
     if ((Test-UefiLikely $I) -eq $false -and $I.BiosYear -gt 0 -and $I.BiosYear -lt 2014) { Say '  This Dell PC is too old for Dell Command | Configure (it supports newer business models). Use the BIOS menu; see "BIOS guide for this PC".' Yellow; return $true }
+    if ($script:AutoYes -or $script:Unattended) { Say '  Dell Command | Configure can change BIOS options on supported Dell PCs (needs a person to choose).' DarkGray; return $true }
     $cctk = Get-CctkPath
     if (-not $cctk) {
         if (-not (Ask '  Dell Command | Configure (free, from Dell) can change BIOS options on supported Dell PCs. Install it through winget now?')) { return $true }
@@ -2990,6 +2993,7 @@ function Invoke-BiosSettings {
     if ($all.Count -eq 0) { Say '  No boot-related options were found.' Yellow; return }
     $i = 0
     foreach ($o in $all) { $i++; Say ("  {0,2}. {1,-34} = {2}   [{3}]" -f $i, $o.Name, $o.Value, ($o.Allowed -join ' / ')) Gray }
+    if ($script:AutoYes -or $script:Unattended) { return }      # choosing needs a person
     $pick = 0
     if (-not [int]::TryParse((Read-Host '  Which one do you want to change? (number, Enter = none) [0]').Trim(), [ref]$pick) -or $pick -lt 1 -or $pick -gt $all.Count) { return }
     $o = $all[$pick - 1]
