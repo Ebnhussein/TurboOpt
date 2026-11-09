@@ -13,7 +13,7 @@ Turbo Optimizer is an open-source **Windows optimizer, system cleaner and repair
 No installer, no ads, no telemetry. Paste one line into PowerShell: it downloads, opens a modern app window in your browser, and asks what you want.
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 ![Turbo Optimizer browser version](docs/ui-home.png)
@@ -57,7 +57,7 @@ Run the same line again to update; your settings and undo history are kept. Pref
 ## Quick start
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 Switch on **Dry run** at the top of the app first to see what would happen without changing anything. Developers can clone the repository instead: `git clone https://github.com/Ebnhussein/TurboOpt.git` and run `app\TurboOptimizer.bat`.

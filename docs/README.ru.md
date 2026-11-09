@@ -29,7 +29,7 @@
 ## Быстрый старт
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 Откройте PowerShell и вставьте эту строку. Программа скачается, откроется в браузере и спросит, что вам нужно (в том числе автоматический уход: еженедельная очистка или ежедневный контроль). Сначала попробуйте **пробный режим**.

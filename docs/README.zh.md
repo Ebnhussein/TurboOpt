@@ -29,7 +29,7 @@
 ## 快速开始
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 打开 PowerShell 并粘贴这一行。它会下载工具，在浏览器中打开，并询问你想做什么（包括自动维护：每周清理或每日监控）。先试试**试运行**。

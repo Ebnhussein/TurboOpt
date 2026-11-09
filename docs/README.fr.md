@@ -29,7 +29,7 @@ Sans installation, sans publicité, sans télémétrie. Collez une ligne dans Po
 ## Démarrage rapide
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 Ouvrez PowerShell et collez cette ligne. L'outil se télécharge, s'ouvre dans le navigateur et vous demande ce que vous voulez (y compris l'entretien automatique : nettoyage hebdomadaire ou surveillance quotidienne). Essayez d'abord le **mode test**.

@@ -29,6 +29,10 @@ jobs:
         run: |
           $hit = Select-String -Path app\TurboOptimizer.ps1, app\TurboOptimizerWeb.ps1, install.ps1 -Pattern '[^\x00-\x7F]'
           if ($hit) { $hit | Select-Object -First 10 | ForEach-Object { Write-Output "$($_.Filename):$($_.LineNumber)" }; exit 1 }
+      - name: Short installer copy matches
+        shell: powershell
+        run: |
+          if ((Get-FileHash .\install.ps1).Hash -ne (Get-FileHash .\i.txt).Hash) { Write-Output 'i.txt must be an exact copy of install.ps1'; exit 1 }
       - name: Translations
         shell: powershell
         run: .\tests\validate-strings.ps1 -Candidate .\app\TurboUI_strings.json

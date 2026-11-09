@@ -29,7 +29,7 @@ Sin instalador, sin anuncios, sin telemetría. Pega una línea en PowerShell: de
 ## Inicio rápido
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 Abre PowerShell y pega esta línea. Descarga la herramienta, la abre en el navegador y te pregunta qué quieres (incluido el cuidado automático: limpieza semanal o vigilancia diaria). Prueba primero el **modo de prueba**.

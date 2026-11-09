@@ -29,7 +29,7 @@ PowerShell में बना ओपन-सोर्स टूल, जो **Win
 ## तेज़ शुरुआत
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 PowerShell खोलें और यह लाइन पेस्ट करें। टूल डाउनलोड होकर ब्राउज़र में खुलेगा और पूछेगा कि आप क्या चाहते हैं (स्वचालित देखभाल सहित: साप्ताहिक सफ़ाई या रोज़ की निगरानी)। पहले **ट्रायल मोड** आज़माएँ।

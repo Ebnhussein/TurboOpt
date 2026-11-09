@@ -29,7 +29,7 @@
 ## البداية السريعة
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 افتح PowerShell والصق السطر ده. هينزّل الأداة ويفتحها في المتصفح ويسألك عايز إيه (والعناية التلقائية: تنظيف أسبوعي أو مراقبة يومية). جرّب وضع **التجربة فقط** الأول.

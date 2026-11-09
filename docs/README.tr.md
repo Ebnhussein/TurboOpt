@@ -29,7 +29,7 @@ Kurulum yok, reklam yok, telemetri yok. PowerShell'e tek satır yapıştırın: 
 ## Hızlı başlangıç
 
 ```powershell
-irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 ```
 
 PowerShell'i açın ve bu satırı yapıştırın. Araç indirilir, tarayıcıda açılır ve ne istediğinizi sorar (otomatik bakım dahil: haftalık temizlik veya günlük izleme). Önce **deneme modunu** deneyin.

@@ -2,11 +2,12 @@
 
 ## v12.1
 
+- Shorter install command: `irm https://ebnhussein.github.io/TurboOpt/i.txt | iex` (the old raw link still works).
 - Tidier repository: the program lives in the app folder; policies are in .github and the changelog in docs, so the top level only has install.ps1, README and LICENSE besides folders.
 
 ## v12.0
 
-- One-line install: paste `irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex` into PowerShell. It downloads the latest release (SHA-256 checked), keeps your settings and undo history when updating, and opens the app in your browser.
+- One-line install: paste `irm https://ebnhussein.github.io/TurboOpt/i.txt | iex` into PowerShell. It downloads the latest release (SHA-256 checked), keeps your settings and undo history when updating, and opens the app in your browser.
 - The classic Windows window version was removed. The browser app (and the console) remain.
 - Automatic care, asked on first run and changeable in Safety and tools: Not now, Weekly cleanup, or Watch and fix (a daily check that fixes only safe, reversible problems and sends a notification about serious ones).
 - New `-Monitor` mode for the daily watch; `-Browser` opens the app directly.

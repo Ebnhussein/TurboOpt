@@ -78,7 +78,7 @@ $zip.Dispose(); $fs.Dispose()
 $cl = Get-Content (Join-Path $root 'docs\CHANGELOG.md') -Raw
 $m = [regex]::Match($cl, "(?ms)^## v$([regex]::Escape($ver))\s*\r?\n(.*?)(?=^## v|\z)")
 $body = if ($m.Success) { $m.Groups[1].Value.Trim() } else { 'See the changelog.' }
-$notes = "**Easiest:** open PowerShell and paste ``irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex``.`n`n**Or download ``TurboOptimizer-$Tag.zip`` below** (not the 'Source code' files), unzip it, and double-click ``Start Turbo Optimizer.bat``. Windows 10 (1809+) or Windows 11. Switch on Dry run first to change nothing.`n`n$body"
+$notes = "**Easiest:** open PowerShell and paste ``irm https://ebnhussein.github.io/TurboOpt/i.txt | iex``.`n`n**Or download ``TurboOptimizer-$Tag.zip`` below** (not the 'Source code' files), unzip it, and double-click ``Start Turbo Optimizer.bat``. Windows 10 (1809+) or Windows 11. Switch on Dry run first to change nothing.`n`n$body"
 [System.IO.File]::WriteAllText((Join-Path $dist 'notes.md'), $notes, (New-Object System.Text.UTF8Encoding($false)))
 $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
 [System.IO.File]::WriteAllText("$zipPath.sha256", "$hash  TurboOptimizer-$Tag.zip`n", [System.Text.Encoding]::ASCII)

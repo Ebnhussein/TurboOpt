@@ -1,7 +1,7 @@
 <#
   Turbo Optimizer - one-line installer and launcher.
 
-      irm https://raw.githubusercontent.com/Ebnhussein/TurboOpt/main/install.ps1 | iex
+      irm https://ebnhussein.github.io/TurboOpt/i.txt | iex
 
   It downloads the latest release from GitHub, checks its SHA-256, puts the files in
   %LOCALAPPDATA%\TurboOptimizer\app (your settings and undo history are kept when you update),
