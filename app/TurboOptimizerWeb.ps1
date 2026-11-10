@@ -91,7 +91,16 @@ function Publish-Startup {
     foreach ($it in @(Get-StartupItems)) { $items += @{ Key = "$($it.Kind)|$($it.Location)|$($it.Name)"; Name = [string]$it.Name; Command = [string]$it.Command; Protected = [bool](Test-Protected $it.Name) } }
     $sync.Q.Enqueue(@{ K = 'startup'; Items = $items })
 }
+function Publish-Programs {
+    $items = @()
+    foreach ($p in @(Get-InstalledPrograms)) { $items += @{ Key = [string]$p.Key; Name = [string]$p.Name; Version = [string]$p.Version; Publisher = [string]$p.Publisher; SizeMB = [int]$p.SizeMB; Store = ($p.Kind -eq 'Store'); Protected = [bool](Test-ProgramProtected $p) } }
+    $sync.Q.Enqueue(@{ K = 'programs'; Items = $items })
+}
 $script:Plat = $null
+'@
+$monBootstrap = @'
+. $sync.Core -AsLibrary
+function Publish-Monitor { $sync.Mon = Get-MonitorSample }
 '@
 $infoBootstrap = @'
 . $sync.Core -AsLibrary
@@ -130,6 +139,29 @@ $ib.Runspace = $infoRs
 try { [void]$ib.Invoke() } catch {}
 $ib.Dispose()
 
+$monRs = $null
+function Start-MonitorRefresh {
+    if ($script:MonAsync -and -not $script:MonAsync.IsCompleted) { return }
+    if ($script:MonPs) { try { $script:MonPs.Dispose() } catch {}; $script:MonPs = $null }
+    if (-not $script:MonRsReady) {
+        $script:MonRsReady = $true
+        $script:MonRs = [runspacefactory]::CreateRunspace()
+        $script:MonRs.ApartmentState = 'STA'
+        $script:MonRs.ThreadOptions = 'ReuseThread'
+        $script:MonRs.Open()
+        $script:MonRs.SessionStateProxy.SetVariable('sync', $sync)
+        $mb = [powershell]::Create(); $mb.Runspace = $script:MonRs
+        [void]$mb.AddScript($monBootstrap)
+        try { [void]$mb.Invoke() } catch {}
+        $mb.Dispose()
+    }
+    $ps = [powershell]::Create()
+    $ps.Runspace = $script:MonRs
+    [void]$ps.AddScript('try { Publish-Monitor } catch { }')
+    $script:MonPs = $ps
+    $script:MonAsync = $ps.BeginInvoke()
+}
+
 # ---------------------------------------------------------------- what the page may ask for (by name only)
 $Categories = @(
     @{ Id = 'home'; K = 'cat_home'; Actions = @(
@@ -141,7 +173,9 @@ $Categories = @(
         @{ K = 'act_clean'; D = 'd_clean'; Cmd = 'Invoke-Clean' },
         @{ K = 'act_space'; D = 'd_space'; Cmd = 'Invoke-SpaceAnalyzer' },
         @{ K = 'act_disks'; D = 'd_disks'; Cmd = 'Invoke-DiskOptimize' },
-        @{ K = 'act_debloat'; D = 'd_debloat'; Cmd = 'Invoke-Debloat' }) },
+        @{ K = 'act_debloat'; D = 'd_debloat'; Cmd = 'Invoke-Debloat' },
+        @{ K = 'act_programs'; D = 'd_programs'; Cmd = 'Publish-Programs' }) },
+    @{ Id = 'monitor'; K = 'cat_monitor'; Actions = @() },
     @{ Id = 'speed'; K = 'cat_speed'; Actions = @(
         @{ K = 'act_turbo'; D = 'd_turbo'; Cmd = 'Invoke-Turbo' },
         @{ K = 'act_startup'; D = 'd_startup'; Cmd = 'Publish-Startup' },
@@ -265,6 +299,7 @@ function Receive-Message($m) {
         'step' { $script:Step = @{ i = [int]$m.I; n = [int]$m.N }; $script:WorkText = ('{0}/{1}  {2}' -f $m.I, $m.N, $m.T) }
         'findings' { $script:IdSeq++; $script:Dialog = @{ id = $script:IdSeq; k = 'findings'; items = @($m.Items) } }
         'startup' { $script:IdSeq++; $script:Dialog = @{ id = $script:IdSeq; k = 'startup'; items = @($m.Items) } }
+        'programs' { $script:IdSeq++; $script:Dialog = @{ id = $script:IdSeq; k = 'programs'; items = @($m.Items) } }
         'info' { $script:LastInfo = $m }
         'done' {
             $script:Busy = $false
@@ -438,6 +473,19 @@ function Handle-Request($ctx) {
             if ($script:Busy) { $script:Pending = @{ Cmd = $cmd; Title = (Get-Text 'dlg_startup'); Dry = $script:LastDry } } else { Start-Action $cmd (Get-Text 'dlg_startup') $script:LastDry }
             Send-Json $ctx @{ ok = $true }
         }
+        '/api/monitor' {
+            Start-MonitorRefresh
+            Send-Json $ctx @{ m = $sync.Mon }
+        }
+        '/api/uninstall' {
+            $keys = @(@($body.keys) | ForEach-Object { [string]$_ } | Where-Object { $_ -match '^(Win32\|(machine|machine32|user)\|[^|;"<>`$]{1,200}|Store\|[\w\.\-~]{1,200})$' })
+            if ($keys.Count -eq 0 -or $keys.Count -gt 40) { Send-Json $ctx @{ error = 'bad request' } 400; return }
+            $sync.Keys = $keys
+            $cmd = "Invoke-DeepUninstall -Keys @(`$sync.Keys)"
+            if ($script:Busy) { Send-Json $ctx @{ error = 'busy' } 409; return }
+            Start-Action $cmd (Get-Text 'dlg_programs') $script:LastDry
+            Send-Json $ctx @{ ok = $true }
+        }
         '/api/dns' {
             $pick = -1
             [void][int]::TryParse([string]$body.pick, [ref]$pick)
@@ -527,6 +575,12 @@ try {
     $r = Call 'POST' '/api/run' @{ id = 'act_turbo' } $token @{ Origin = 'http://evil.example' }; Out-Line ("foreign origin POST -> {0} (want 403)" -f $r.Code)
     $r = Call 'POST' '/api/run' @{ id = 'Get-Process' }; Out-Line ("unknown action name  -> {0} (want 400)" -f $r.Code)
     $r = Call 'POST' '/api/startup' @{ mode = 'Disable'; keys = @() }; Out-Line ("empty startup list   -> {0} (want 400)" -f $r.Code)
+    $r = Call 'POST' '/api/uninstall' @{ keys = @() }; Out-Line ("empty uninstall list  -> {0} (want 400)" -f $r.Code)
+    $r = Call 'POST' '/api/uninstall' @{ keys = @('Win32|machine|x; calc.exe', 'cmd /c calc') }; Out-Line ("unknown program keys -> {0} (want 400)" -f $r.Code)
+    $r = Call 'GET' '/api/monitor' $null ''; Out-Line ("monitor without token -> {0} (want 403)" -f $r.Code)
+    [void](Call 'GET' '/api/monitor' $null); Start-Sleep -Seconds 6
+    $mon = (Call 'GET' '/api/monitor' $null).Text | ConvertFrom-Json
+    Out-Line ("monitor sample       -> ram {0} %, processes {1}, drives {2}" -f $mon.m.RamPct, $mon.m.Procs, @($mon.m.Drives).Count)
     $page = (Call 'GET' ('/?t=' + $token) $null '').Text
     $m = [regex]::Match($page, 'const BOOT = (\{.*?\});\r?\n', 'Singleline')
     Out-Line ("page boot data parses: {0}" -f ($m.Success -and [bool]($m.Groups[1].Value | ConvertFrom-Json).cats))

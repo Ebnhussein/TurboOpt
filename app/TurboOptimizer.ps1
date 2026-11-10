@@ -10,7 +10,7 @@ param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [s
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '12.6'
+$script:Version    = '12.7'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -2026,6 +2026,8 @@ function Describe-ExtraEntry($E) {
         'trim'            { return 'put the TRIM setting back as it was' }
         'bootorder'       { return 'put the UEFI boot order back as it was' }
         'bios'            { return "put the BIOS option $($E.Name) back to $($E.Previous)" }
+        'regkey'          { return "bring back the registry key $($E.Key)" }
+        'schtask'         { return "bring back the scheduled task $($E.Name)" }
         'compactos'       { return 'undo Windows file compression (CompactOS)' }
         'startup-delayed' { return "start $($E.Name) at sign-in again (remove its delayed task)" }
         default           { return "$($E.Type)" }
@@ -2048,6 +2050,8 @@ function Undo-ExtraEntry($E) {
         'trim'       { fsutil behavior set DisableDeleteNotify ([int]$E.Previous) | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'fsutil failed' } }
         'bootorder'  { $ids = @($E.Previous | ForEach-Object { [string]$_ }); if ($ids.Count -eq 0) { throw 'no saved order' }; bcdedit /set '{fwbootmgr}' displayorder @ids | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'bcdedit failed' } }
         'bios'       { Set-BiosOption ([string]$E.Vendor) ([string]$E.Name) ([string]$E.Previous) }
+        'regkey'     { reg.exe import $E.Backup | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'reg import failed' } }
+        'schtask'    { Register-ScheduledTask -TaskName $E.Name -TaskPath $E.TaskPath -Xml (Get-Content -LiteralPath $E.Backup -Raw) -ErrorAction Stop | Out-Null }
         'compactos'  { compact.exe /compactOS:never | Out-Null }
         'startup-delayed' {
             Unregister-ScheduledTask -TaskName $E.Task -Confirm:$false -ErrorAction SilentlyContinue
@@ -3165,6 +3169,435 @@ function Invoke-AutomationMenu {
         '3' { Set-AutoCare 'monitor' }
     }
 }
+# ---------------------------------------------------------------- live monitor (read-only)
+# Windows performance classes have English names on every language, unlike the performance counter names.
+function Get-MonitorSample {
+    $cores = [math]::Max(1, [Environment]::ProcessorCount)
+    $s = @{ Cpu = $null; RamPct = $null; RamUsedGB = $null; RamTotalGB = $null; DiskPct = $null; DiskReadKB = 0; DiskWriteKB = 0; NetDownKB = 0; NetUpKB = 0
+            Procs = 0; UptimeSec = 0; TempC = $null; Battery = $null; Charging = $null; Cores = $cores; Drives = @(); TopCpu = @(); TopRam = @() }
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+        $s.RamTotalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)
+        $s.RamUsedGB = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 1)
+        $s.RamPct = [int][math]::Round((($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / $os.TotalVisibleMemorySize) * 100, 0)
+        $s.Procs = [int]$os.NumberOfProcesses
+        $s.UptimeSec = [int]((Get-Date) - $os.LastBootUpTime).TotalSeconds
+    } catch {}
+    try { $c = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop; $s.Cpu = [int][math]::Min(100, [double]$c.PercentProcessorTime) } catch {}
+    try {
+        $d = Get-CimInstance Win32_PerfFormattedData_PerfDisk_PhysicalDisk -Filter "Name='_Total'" -ErrorAction Stop
+        $s.DiskPct = [int][math]::Min(100, [double]$d.PercentDiskTime)
+        $s.DiskReadKB = [int]([double]$d.DiskReadBytesPersec / 1KB)
+        $s.DiskWriteKB = [int]([double]$d.DiskWriteBytesPersec / 1KB)
+    } catch {}
+    try {
+        $dn = 0.0; $up = 0.0
+        foreach ($n in @(Get-CimInstance Win32_PerfFormattedData_Tcpip_NetworkInterface -ErrorAction Stop)) { $dn += [double]$n.BytesReceivedPersec; $up += [double]$n.BytesSentPersec }
+        $s.NetDownKB = [int]($dn / 1KB); $s.NetUpKB = [int]($up / 1KB)
+    } catch {}
+    try {
+        $g = @{}
+        foreach ($r in @(Get-CimInstance Win32_PerfFormattedData_PerfProc_Process -ErrorAction Stop)) {
+            if ($r.Name -eq '_Total' -or $r.Name -eq 'Idle') { continue }
+            $nm = [string]($r.Name -replace '#\d+$', '')
+            if (-not $g.ContainsKey($nm)) { $g[$nm] = @{ Name = $nm; Cpu = 0.0; MemMB = 0.0; N = 0 } }
+            $g[$nm].Cpu += [double]$r.PercentProcessorTime / $cores
+            $g[$nm].MemMB += [double]$r.WorkingSetPrivate / 1MB
+            $g[$nm].N++
+        }
+        $all = @($g.Values)
+        $s.TopCpu = @($all | Sort-Object { $_.Cpu } -Descending | Select-Object -First 8 | ForEach-Object { @{ Name = $_.Name; Cpu = [math]::Round($_.Cpu, 1); MemMB = [int]$_.MemMB; N = $_.N } })
+        $s.TopRam = @($all | Sort-Object { $_.MemMB } -Descending | Select-Object -First 8 | ForEach-Object { @{ Name = $_.Name; Cpu = [math]::Round($_.Cpu, 1); MemMB = [int]$_.MemMB; N = $_.N } })
+    } catch {}
+    try { $s.Drives = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' -ErrorAction Stop | Where-Object { $_.Size } | ForEach-Object { @{ Name = [string]$_.DeviceID; FreeGB = [math]::Round($_.FreeSpace / 1GB, 1); SizeGB = [math]::Round($_.Size / 1GB, 1) } }) } catch {}
+    try {
+        $t = @(Get-CimInstance -Namespace 'root/wmi' -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop | ForEach-Object { $_.CurrentTemperature / 10 - 273.15 } | Where-Object { $_ -gt 0 -and $_ -lt 120 })
+        if ($t.Count) { $s.TempC = [int][math]::Round(($t | Measure-Object -Maximum).Maximum) }
+    } catch {}
+    try {
+        $b = Get-CimInstance Win32_Battery -ErrorAction Stop | Select-Object -First 1
+        if ($b) { $s.Battery = [int]$b.EstimatedChargeRemaining; $s.Charging = ($b.BatteryStatus -ne 1) }
+    } catch {}
+    return $s
+}
+function Format-Rate([double]$KB) {
+    if ($KB -ge 1024) { return ('{0:N1} MB/s' -f ($KB / 1024)) }
+    return ('{0:N0} KB/s' -f $KB)
+}
+function Show-MonitorBlock($S) {
+    $cpu = 0; if ($null -ne $S.Cpu) { $cpu = [int]$S.Cpu }
+    $ram = 0; if ($null -ne $S.RamPct) { $ram = [int]$S.RamPct }
+    $dsk = 0; if ($null -ne $S.DiskPct) { $dsk = [int]$S.DiskPct }
+    $cc = 'Green'; if ($cpu -ge 85) { $cc = 'Red' } elseif ($cpu -ge 60) { $cc = 'Yellow' }
+    $rc = 'Green'; if ($ram -ge 90) { $rc = 'Red' } elseif ($ram -ge 75) { $rc = 'Yellow' }
+    Say ('  CPU    {0}  {1,3} %' -f (Format-Bar $cpu 100 24), $cpu) $cc
+    Say ('  RAM    {0}  {1,3} %   {2} / {3} GB' -f (Format-Bar $ram 100 24), $ram, $S.RamUsedGB, $S.RamTotalGB) $rc
+    Say ('  Disk   {0}  {1,3} %   read {2}   write {3}' -f (Format-Bar $dsk 100 24), $dsk, (Format-Rate $S.DiskReadKB), (Format-Rate $S.DiskWriteKB)) Gray
+    Say ('  Net    down {0}   up {1}' -f (Format-Rate $S.NetDownKB), (Format-Rate $S.NetUpKB)) Gray
+    $up = [TimeSpan]::FromSeconds($S.UptimeSec)
+    $extra = ('  Uptime {0}d {1}h {2}m   Processes {3}' -f $up.Days, $up.Hours, $up.Minutes, $S.Procs)
+    if ($null -ne $S.TempC) { $extra += ('   Temp {0} C' -f $S.TempC) }
+    if ($null -ne $S.Battery) { $ch = ''; if ($S.Charging) { $ch = ' (charging)' }; $extra += ('   Battery {0} %{1}' -f $S.Battery, $ch) }
+    Say $extra DarkGray
+    foreach ($d in @($S.Drives)) { Say ('  Drive  {0}  {1} GB free of {2} GB' -f $d.Name, $d.FreeGB, $d.SizeGB) DarkGray }
+    Say ''
+    Say '  Top by processor' White
+    foreach ($p in @($S.TopCpu | Select-Object -First 5)) { Say ('    {0,-28} {1,5} %   {2} MB   x{3}' -f $p.Name, $p.Cpu, $p.MemMB, $p.N) Gray }
+    Say '  Top by memory' White
+    foreach ($p in @($S.TopRam | Select-Object -First 5)) { Say ('    {0,-28} {1,6} MB   x{2}' -f $p.Name, $p.MemMB, $p.N) Gray }
+}
+function Invoke-MonitorView {
+    Say '[+] Live monitor' Cyan
+    $live = (-not $script:AutoYes -and -not $script:Unattended)
+    $loops = 1; if ($live) { $loops = 120 }
+    for ($i = 0; $i -lt $loops; $i++) {
+        $s = Get-MonitorSample
+        if ($live) { Clear-Host; Show-Brand 'Live monitor'; Write-Host '' }
+        Show-MonitorBlock $s
+        if (-not $live) { break }
+        Say '' ; Say '  Press any key to go back.' DarkGray
+        Start-Sleep -Milliseconds 1500
+        try { if ([Console]::KeyAvailable) { [void][Console]::ReadKey($true); break } } catch { break }
+    }
+}
+
+# ---------------------------------------------------------------- remove programs completely
+# 1) run the program's own uninstaller  2) find what it left behind (folders, registry keys, tasks, shortcuts)
+# 3) show the list, and only after a yes: files go to the Recycle Bin, registry keys and tasks are exported first so they can be undone.
+function Get-ProgNameKey([string]$Text) {
+    $t = ([string]$Text).ToLower()
+    $t = $t -replace '\(.*?\)', ' ' -replace '\[.*?\]', ' '
+    $t = $t -replace '\bv?\d+(\.\d+)+\b', ' ' -replace '\b(x64|x86|64-?bit|32-?bit|amd64)\b', ' '
+    return ($t -replace '[^a-z0-9]', '')
+}
+function Test-ProgramProtected($P) {
+    $n = [string]$P.Name
+    return [bool]($n -match '^(Microsoft Visual C\+\+|Microsoft \.NET|\.NET |Microsoft ASP\.NET|Microsoft Windows Desktop Runtime|Microsoft Edge|Microsoft Update Health|Windows Driver Package|Windows Software Development Kit)' -or $n -match 'Redistributable|WebView2')
+}
+function Get-InstalledPrograms {
+    $out = New-Object System.Collections.ArrayList
+    $roots = @(
+        @{ P = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'; S = 'machine' },
+        @{ P = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'; S = 'machine32' },
+        @{ P = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'; S = 'user' })
+    $seen = @{}
+    foreach ($r in $roots) {
+        foreach ($k in @(Get-ChildItem -Path $r.P -ErrorAction SilentlyContinue)) {
+            $v = $null
+            try { $v = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction Stop } catch { continue }
+            $name = ([string]$v.DisplayName).Trim()
+            if (-not $name) { continue }
+            if ($v.SystemComponent -eq 1 -or $v.ParentKeyName -or [string]$v.ReleaseType -match 'Update|Hotfix') { continue }
+            if ($name -match '^(KB\d{6,}|Security Update|Hotfix|Update for )') { continue }
+            $un = [string]$v.UninstallString; $qu = [string]$v.QuietUninstallString
+            if (-not $un -and -not $qu) { continue }
+            $dedup = ($name + '|' + [string]$v.DisplayVersion).ToLower()
+            if ($seen.ContainsKey($dedup)) { continue }
+            $seen[$dedup] = $true
+            $size = 0; if ($v.EstimatedSize) { $size = [int][math]::Round([double]$v.EstimatedSize / 1024, 0) }
+            $msi = ''
+            if ($k.PSChildName -match '^\{[0-9A-Fa-f-]{36}\}$' -and ($v.WindowsInstaller -eq 1 -or $un -match 'msiexec')) { $msi = $k.PSChildName }
+            $loc = ([string]$v.InstallLocation).Trim().Trim('"').TrimEnd('\')
+            [void]$out.Add([pscustomobject]@{
+                Kind = 'Win32'; Key = ('Win32|{0}|{1}' -f $r.S, $k.PSChildName); Name = $name; Version = [string]$v.DisplayVersion; Publisher = ([string]$v.Publisher).Trim()
+                SizeMB = $size; InstallLocation = $loc; UninstallString = $un; QuietUninstallString = $qu; Msi = $msi; RegPath = $k.PSPath; RegName = $k.Name; PackageFullName = '' })
+        }
+    }
+    foreach ($a in @(Get-AppxPackage -ErrorAction SilentlyContinue)) {
+        if ($a.IsFramework -or $a.NonRemovable -or $a.IsResourcePackage -or [string]$a.SignatureKind -eq 'System') { continue }
+        if ($a.Name -match '^(MicrosoftWindows\.|Windows\.|Microsoft\.(Windows|UI\.|VCLibs|NET\.|DesktopAppInstaller|StorePurchaseApp|Services\.Store))') { continue }
+        $pub = ([string]$a.Publisher) -replace '^CN=([^,]+).*$', '$1'
+        [void]$out.Add([pscustomobject]@{
+            Kind = 'Store'; Key = ('Store|' + $a.PackageFullName); Name = [string]$a.Name; Version = [string]$a.Version; Publisher = $pub
+            SizeMB = 0; InstallLocation = [string]$a.InstallLocation; UninstallString = ''; QuietUninstallString = ''; Msi = ''; RegPath = ''; RegName = ''; PackageFullName = [string]$a.PackageFullName })
+    }
+    return @($out | Sort-Object Name)
+}
+# Splits a registry command line into the program and its arguments (no shell involved).
+function Split-CommandLine([string]$Line) {
+    $s = $Line.Trim()
+    if ($s.StartsWith('"')) {
+        $i = $s.IndexOf('"', 1)
+        if ($i -gt 0) { return @{ File = $s.Substring(1, $i - 1); Args = $s.Substring($i + 1).Trim() } }
+    }
+    $m = [regex]::Match($s, '^(.+?\.exe)(\s.*|)$', 'IgnoreCase')
+    if ($m.Success) { return @{ File = $m.Groups[1].Value; Args = $m.Groups[2].Value.Trim() } }
+    return $null
+}
+function Get-UninstallPlan($P) {
+    if ($P.Kind -eq 'Store') { return @{ Mode = 'store'; File = ''; Args = $P.PackageFullName } }
+    if ($P.Msi) { return @{ Mode = 'msi'; File = 'msiexec.exe'; Args = ('/x {0} /qn /norestart' -f $P.Msi) } }
+    $cmd = [string]$P.QuietUninstallString
+    $mode = 'quiet'
+    if (-not $cmd) { $cmd = [string]$P.UninstallString; $mode = 'interactive' }
+    $m = [regex]::Match($cmd, '(?i)msiexec(\.exe)?"?\s+/[ix]\s*(\{[0-9A-F-]{36}\})')
+    if ($m.Success) { return @{ Mode = 'msi'; File = 'msiexec.exe'; Args = ('/x {0} /qn /norestart' -f $m.Groups[2].Value) } }
+    $sp = Split-CommandLine $cmd
+    if ($sp -and $sp.File) { return @{ Mode = $mode; File = $sp.File; Args = $sp.Args } }
+    return @{ Mode = 'none'; File = ''; Args = '' }
+}
+function Test-ProgramGone($P) {
+    if ($P.Kind -eq 'Store') { return -not (@(Get-AppxPackage -Name $P.Name -ErrorAction SilentlyContinue | Where-Object { $_.PackageFullName -eq $P.PackageFullName }).Count) }
+    return -not (Test-Path -LiteralPath $P.RegPath)
+}
+function Invoke-ProgramUninstaller($P, $Plan) {
+    $r = @{ Ran = $false; Gone = $false; Reboot = $false }
+    if ($Plan.Mode -eq 'none') { return $r }
+    if ($Plan.Mode -eq 'store') {
+        try { Remove-AppxPackage -Package $Plan.Args -ErrorAction Stop; $r.Ran = $true } catch { Say "  [x]   $($_.Exception.Message)" Red; Add-ErrorRecord "Remove $($P.Name)" $_ }
+        $r.Gone = Test-ProgramGone $P
+        return $r
+    }
+    if ($Plan.Mode -eq 'interactive') { Say "  The program's own uninstaller opens now. Follow its steps; this tool continues when it is done." Gray }
+    $proc = $null
+    try {
+        if ($Plan.Args) { $proc = Start-Process -FilePath $Plan.File -ArgumentList $Plan.Args -PassThru -ErrorAction Stop }
+        else { $proc = Start-Process -FilePath $Plan.File -PassThru -ErrorAction Stop }
+        $r.Ran = $true
+    } catch { Add-ErrorRecord "Start the uninstaller of $($P.Name)" $_; return $r }
+    $limit = 300; if ($Plan.Mode -eq 'interactive') { $limit = 900 }
+    $deadline = (Get-Date).AddSeconds($limit)
+    $exitedAt = $null
+    Working-Begin "Uninstalling $($P.Name)"
+    while ((Get-Date) -lt $deadline) {
+        if (Test-ProgramGone $P) { $r.Gone = $true; break }
+        if ($proc.HasExited) {
+            if (-not $exitedAt) { $exitedAt = Get-Date }
+            $helpers = @(Get-Process -Name 'unins*', 'uninst*', 'uninstall*' -ErrorAction SilentlyContinue).Count
+            if (((Get-Date) - $exitedAt).TotalSeconds -gt 20 -and $helpers -eq 0) { break }
+        }
+        Start-Sleep -Seconds 2
+    }
+    Working-End
+    if ($proc.HasExited) {
+        $code = $proc.ExitCode
+        Write-Log "Uninstaller of $($P.Name) exit code $code"
+        if ($code -eq 3010 -or $code -eq 1641) { $r.Reboot = $true }
+    }
+    if (-not $r.Gone) { $r.Gone = Test-ProgramGone $P }
+    return $r
+}
+function Get-PathSize([string]$Path) {
+    try {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (-not $item.PSIsContainer) { return [int64]$item.Length }
+        $sum = (Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+        if ($sum) { return [int64]$sum }
+    } catch {}
+    return [int64]0
+}
+# Conservative on purpose: a folder or key is only a leftover when its name equals the program's name (version and "(x64)" ignored),
+# or it is the recorded install folder. Publisher folders are only taken when they are empty. Documents and shared folders are never looked at.
+function Find-Leftovers($P, [string[]]$FileRoots = $null, [string[]]$RegBases = $null, [string[]]$ShortcutRoots = $null, [switch]$Force) {
+    $found = New-Object System.Collections.ArrayList
+    $nameKey = Get-ProgNameKey $P.Name
+    $pubKey = Get-ProgNameKey $P.Publisher
+    $deny = @('windows', 'microsoft', 'microsoftcorporation', 'commonfiles', 'programs', 'packages', 'temp', 'programfiles', 'programdata', 'users', 'system32', 'windowsapps', 'microsoftedge')
+    if ($nameKey.Length -lt 3 -or $deny -contains $nameKey) { $nameKey = '' }
+    if ($pubKey.Length -lt 3 -or $deny -contains $pubKey) { $pubKey = '' }
+    if ($null -eq $FileRoots) {
+        $FileRoots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData, $env:LOCALAPPDATA, (Join-Path $env:LOCALAPPDATA 'Programs'), $env:APPDATA)
+    }
+    $FileRoots = @($FileRoots | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique)
+    $loc = [string]$P.InstallLocation
+    $locKey = ''
+    $locOk = $false
+    if ($loc -and (Test-Path -LiteralPath $loc)) {
+        foreach ($root in $FileRoots) {
+            $rt = $root.TrimEnd('\') + '\'
+            if ($loc.StartsWith($rt, [StringComparison]::OrdinalIgnoreCase) -and $loc.Length -gt $rt.Length) { $locOk = $true; break }
+        }
+        if ($locOk) { $locKey = Get-ProgNameKey (Split-Path -Leaf $loc); if ($locKey.Length -lt 3 -or $deny -contains $locKey) { $locKey = '' } }
+    }
+    $seen = @{}
+    $addPath = {
+        param($Type, $Path)
+        if ($seen.ContainsKey($Path.ToLower())) { return }
+        $seen[$Path.ToLower()] = $true
+        $disp = $Path -replace '^Microsoft\.PowerShell\.Core\\Registry::', ''
+        $size = [int64]0; if ($Type -ne 'Registry' -and $Type -ne 'Task' -and $Type -ne 'Service') { $size = Get-PathSize $Path }
+        [void]$found.Add([pscustomobject]@{ Type = $Type; Path = $Path; Display = $disp; Size = $size })
+    }
+    if ($locOk) { & $addPath 'Folder' $loc }
+    foreach ($root in $FileRoots) {
+        foreach ($d in @(Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue)) {
+            $k = Get-ProgNameKey $d.Name
+            if ($k -and (($nameKey -and $k -eq $nameKey) -or ($locKey -and $k -eq $locKey))) { & $addPath 'Folder' $d.FullName }
+        }
+    }
+    # empty publisher folders (for example "Vendor" after its only product is gone)
+    if ($pubKey) {
+        foreach ($root in $FileRoots) {
+            foreach ($d in @(Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue)) {
+                if ((Get-ProgNameKey $d.Name) -eq $pubKey -and -not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { & $addPath 'Folder' $d.FullName }
+            }
+        }
+    }
+    # shortcuts
+    if ($null -eq $ShortcutRoots) {
+        $ShortcutRoots = @((Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'), (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'), (Join-Path $env:PUBLIC 'Desktop'), [Environment]::GetFolderPath('Desktop'))
+    }
+    if ($nameKey) {
+        foreach ($root in @($ShortcutRoots | Where-Object { $_ -and (Test-Path -LiteralPath $_) })) {
+            foreach ($f in @(Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue)) {
+                $isLnk = (-not $f.PSIsContainer -and $f.Extension -ieq '.lnk')
+                if (($f.PSIsContainer -or $isLnk) -and (Get-ProgNameKey $f.BaseName) -eq $nameKey) { & $addPath $(if ($f.PSIsContainer) { 'Folder' } else { 'File' }) $f.FullName }
+            }
+        }
+    }
+    # registry
+    if ($null -eq $RegBases) { $RegBases = @('HKCU:\SOFTWARE', 'HKLM:\SOFTWARE', 'HKLM:\SOFTWARE\WOW6432Node') }
+    $regDeny = @('microsoft', 'windows', 'classes', 'policies', 'wow6432node', 'clients', 'registeredapplications', 'odbc', 'intel', 'nvidia', 'amd', 'google', 'mozilla', 'apple', 'adobe', 'oracle', 'javasoft')
+    foreach ($base in $RegBases) {
+        if (-not (Test-Path -LiteralPath $base)) { continue }
+        foreach ($c in @(Get-ChildItem -LiteralPath $base -ErrorAction SilentlyContinue)) {
+            $k = Get-ProgNameKey $c.PSChildName
+            if (-not $k -or $regDeny -contains $k) { continue }
+            if ($nameKey -and $k -eq $nameKey) { & $addPath 'Registry' $c.PSPath; continue }
+            if ($pubKey -and $k -eq $pubKey) {
+                $subs = @(Get-ChildItem -LiteralPath $c.PSPath -ErrorAction SilentlyContinue)
+                $mine = @($subs | Where-Object { $nameKey -and (Get-ProgNameKey $_.PSChildName) -eq $nameKey })
+                foreach ($m in $mine) { & $addPath 'Registry' $m.PSPath }
+                $props = @($c.Property)
+                if ($subs.Count -gt 0 -and $mine.Count -eq $subs.Count -and $props.Count -eq 0) { & $addPath 'Registry' $c.PSPath }
+            }
+        }
+    }
+    if ($Force -and $P.Kind -eq 'Win32' -and $P.RegPath -and (Test-Path -LiteralPath $P.RegPath)) { & $addPath 'Registry' ([string]$P.RegPath) }
+    # scheduled tasks and services that point into the old install folder
+    if ($locOk) {
+        try {
+            foreach ($t in @(Get-ScheduledTask -ErrorAction SilentlyContinue)) {
+                foreach ($a in @($t.Actions)) {
+                    if ($a.Execute -and ([string]$a.Execute).Trim('"').StartsWith($loc, [StringComparison]::OrdinalIgnoreCase)) { & $addPath 'Task' ($t.TaskPath + $t.TaskName); break }
+                }
+            }
+        } catch {}
+        try {
+            foreach ($sv in @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue)) {
+                $pn = [string]$sv.PathName
+                if ($pn -and $pn.Trim('"').StartsWith($loc, [StringComparison]::OrdinalIgnoreCase)) {
+                    $sp = Split-CommandLine $pn
+                    if ($sp -and -not (Test-Path -LiteralPath $sp.File)) { & $addPath 'Service' $sv.Name }
+                }
+            }
+        } catch {}
+    }
+    return @($found)
+}
+function Remove-Leftover($L) {
+    switch ($L.Type) {
+        'Folder' {
+            Invoke-Act "Delete folder $($L.Display) (to the Recycle Bin)" {
+                Add-Type -AssemblyName Microsoft.VisualBasic
+                [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($L.Path, 'OnlyErrorDialogs', 'SendToRecycleBin')
+            }
+        }
+        'File' {
+            Invoke-Act "Delete $($L.Display) (to the Recycle Bin)" {
+                Add-Type -AssemblyName Microsoft.VisualBasic
+                [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($L.Path, 'OnlyErrorDialogs', 'SendToRecycleBin')
+            }
+        }
+        'Registry' {
+            Invoke-Act "Delete registry key $($L.Display) (saved first)" {
+                $item = Get-Item -LiteralPath $L.Path -ErrorAction Stop
+                $dest = Join-Path $script:BackupDir 'uninstall'
+                New-Item -ItemType Directory -Path $dest -Force | Out-Null
+                $file = Join-Path $dest ((Get-Date -Format 'yyyyMMddHHmmssfff') + '.reg')
+                reg.exe export $item.Name $file /y | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw 'could not save the key first, so it was not deleted' }
+                Add-Journal @{ Type = 'regkey'; Key = $item.Name; Backup = $file }
+                Remove-Item -LiteralPath $L.Path -Recurse -Force -ErrorAction Stop
+            }
+        }
+        'Task' {
+            Invoke-Act "Delete scheduled task $($L.Display) (saved first)" {
+                $path = (Split-Path -Parent ($L.Path -replace '/', '\')) ; $leaf = Split-Path -Leaf ($L.Path -replace '/', '\')
+                $tp = $path; if (-not $tp.EndsWith('\')) { $tp += '\' }
+                $dest = Join-Path $script:BackupDir 'uninstall'
+                New-Item -ItemType Directory -Path $dest -Force | Out-Null
+                $file = Join-Path $dest ((Get-Date -Format 'yyyyMMddHHmmssfff') + '.task.xml')
+                Export-ScheduledTask -TaskName $leaf -TaskPath $tp | Set-Content -Path $file -Encoding UTF8
+                Add-Journal @{ Type = 'schtask'; Name = $leaf; TaskPath = $tp; Backup = $file }
+                Unregister-ScheduledTask -TaskName $leaf -TaskPath $tp -Confirm:$false -ErrorAction Stop
+            }
+        }
+        'Service' {
+            Invoke-Act "Delete the orphan service $($L.Display)" { sc.exe delete $L.Path | Out-Null; if ($LASTEXITCODE -ne 0) { throw "sc delete failed ($LASTEXITCODE)" } }
+        }
+    }
+}
+function Invoke-DeepUninstall([string[]]$Keys) {
+    Say '[+] Remove programs completely' Cyan
+    $all = @(Get-InstalledPrograms)
+    $sel = @($all | Where-Object { $Keys -contains $_.Key })
+    foreach ($x in @($sel | Where-Object { Test-ProgramProtected $_ })) { Say "  [--]  $($x.Name) is protected, skipped" Yellow }
+    $sel = @($sel | Where-Object { -not (Test-ProgramProtected $_) })
+    if ($sel.Count -eq 0) { Say '  Nothing to remove.' Yellow; return }
+    foreach ($p in $sel) { Say ('  - {0} {1}' -f $p.Name, $p.Version) White }
+    if (-not (Ask ('  Uninstall {0} program(s) and clean up what they leave behind?' -f $sel.Count))) { Say '  Cancelled. Nothing was removed.' Yellow; return }
+    if (-not $script:DryRun -and (Ask '  Create a restore point first?')) { Invoke-RestorePoint }
+    foreach ($p in $sel) {
+        Say ''
+        Say ('[ {0} ]' -f $p.Name) Cyan
+        $plan = Get-UninstallPlan $p
+        if ($script:DryRun) {
+            Say ('  [DRY] would run the uninstaller ({0}): {1} {2}' -f $plan.Mode, $plan.File, $plan.Args) DarkYellow
+            Say '  [DRY] then list what it left behind and ask before deleting' DarkYellow
+            continue
+        }
+        $res = Invoke-ProgramUninstaller $p $plan
+        $force = $false
+        if ($res.Reboot) { Say '  Windows needs a restart to finish this removal.' Yellow }
+        if (-not $res.Gone) {
+            if (-not $res.Ran) {
+                Say '  Its uninstaller could not run.' Yellow
+                if (-not (Ask '  Its uninstaller could not run. Remove its leftovers anyway?')) { continue }
+                $force = $true
+            } else {
+                Say '  The uninstaller did not finish (cancelled, or still running). Nothing else was touched.' Yellow
+                continue
+            }
+        } else { Say '  [OK]  Uninstalled' Green; $script:OkCount++ }
+        Working-Begin 'Looking for leftovers'
+        $left = @(Find-Leftovers $p -Force:$force)
+        Working-End
+        if ($left.Count -eq 0) { Say '  No leftovers found. Clean.' Green; continue }
+        Say ('  Found {0} leftover item(s):' -f $left.Count) White
+        $total = [int64]0
+        foreach ($l in $left) {
+            $sz = ''; if ($l.Size -gt 0) { $sz = Format-Size $l.Size; $total += $l.Size }
+            Say ('    [{0}] {1}  {2}' -f $l.Type, $l.Display, $sz) Gray
+        }
+        Say '    Files go to the Recycle Bin. Registry keys and tasks are saved first, so "Revert recorded changes" can bring them back.' DarkGray
+        if (-not (Ask '  Delete these leftovers?')) { Say '  Kept. Nothing else was removed.' Yellow; continue }
+        foreach ($l in $left) { Remove-Leftover $l }
+        Write-Log "Removed $($p.Name) and $($left.Count) leftover item(s), about $(Format-Size $total)"
+    }
+}
+function Invoke-ProgramsMenu {
+    Say '[+] Remove programs completely' Cyan
+    $list = @(Get-InstalledPrograms)
+    if ($list.Count -eq 0) { Say '  No programs found.'; return }
+    for ($i = 0; $i -lt $list.Count; $i++) {
+        $p = $list[$i]
+        $sz = ''; if ($p.SizeMB) { $sz = '{0} MB' -f $p.SizeMB }
+        $flag = ''; if (Test-ProgramProtected $p) { $flag = '  (protected)' } elseif ($p.Kind -eq 'Store') { $flag = '  (Store app)' }
+        Say ('{0,4}. {1}  {2}  {3}{4}' -f ($i + 1), $p.Name, $p.Version, $sz, $flag) White
+    }
+    if ($script:AutoYes) { return }
+    $sel = Read-Host 'Numbers to remove completely (for example 2,5), Enter = none'
+    if ([string]::IsNullOrWhiteSpace($sel)) { return }
+    $keys = @()
+    foreach ($tok in ($sel -split ',')) {
+        $n = 0
+        if (-not [int]::TryParse($tok.Trim(), [ref]$n) -or $n -lt 1 -or $n -gt $list.Count) { Say "  Ignored: $tok" Yellow; continue }
+        $keys += $list[$n - 1].Key
+    }
+    if ($keys.Count) { Invoke-DeepUninstall -Keys $keys }
+}
+
 # ---- uninstall: removes the scheduled tasks, the saved data and (for the installed copy) the app folder ----
 $script:UninstallDone = $false
 function Invoke-Uninstall {
@@ -3339,12 +3772,14 @@ $script:MenuDef = @(
         @{ N = '1';  T = 'Doctor: find and fix problems'; P = 'Doctor';              A = { Invoke-Doctor } },
         @{ N = '2';  T = 'Diagnose (read-only)';          P = 'Diagnose';            A = { Invoke-Diagnose } },
         @{ N = '3';  T = 'ALL-IN-ONE optimization';       P = 'All-in-one';          A = { Invoke-All } },
-        @{ N = '4';  T = 'HTML report';                   P = 'HTML report';         A = { Export-HtmlReport } }) },
+        @{ N = '4';  T = 'HTML report';                   P = 'HTML report';         A = { Export-HtmlReport } },
+        @{ N = '31'; T = 'Live monitor (CPU, RAM, disk)'; P = 'Live monitor';        A = { Invoke-MonitorView } }) },
     @{ G = 'CLEAN AND SPACE'; Items = @(
         @{ N = '5';  T = 'Clean files';                   P = 'Clean files';         A = { Invoke-Clean } },
         @{ N = '6';  T = 'Free up space';                 P = 'Free up space';       A = { Invoke-SpaceAnalyzer } },
         @{ N = '7';  T = 'Disk optimize / check';         P = 'Disks';               A = { Invoke-DiskOptimize } },
-        @{ N = '8';  T = 'Debloat';                       P = 'Debloat';             A = { Invoke-Debloat } }) },
+        @{ N = '8';  T = 'Debloat';                       P = 'Debloat';             A = { Invoke-Debloat } },
+        @{ N = '32'; T = 'Remove programs completely';    P = 'Remove programs';     A = { Invoke-ProgramsMenu } }) },
     @{ G = 'SPEED'; Items = @(
         @{ N = '9';  T = 'Turbo mode';                    P = 'Turbo mode';          A = { Invoke-Turbo } },
         @{ N = '10'; T = 'Startup programs';              P = 'Startup programs';    A = { Invoke-StartupManager } },
@@ -3485,7 +3920,11 @@ function Start-SelfTest {
         @{ N = 'firmware';     A = { Invoke-FirmwareReboot } },
         @{ N = 'guide';        A = { Invoke-BiosGuide } },
         @{ N = 'bootorder';    A = { Invoke-BootOrder } },
-        @{ N = 'biosdump';     A = { Invoke-BiosDump } }
+        @{ N = 'biosdump';     A = { Invoke-BiosDump } },
+        @{ N = 'monitor';      A = { $m = Get-MonitorSample; if ($null -eq $m.RamPct) { throw 'no RAM reading' } } },
+        @{ N = 'monitorview';  A = { Invoke-MonitorView } },
+        @{ N = 'programs';     A = { Invoke-ProgramsMenu } },
+        @{ N = 'uninstall-dry'; A = { $q = @(Get-InstalledPrograms | Where-Object { $_.Kind -eq 'Win32' -and -not (Test-ProgramProtected $_) } | Select-Object -First 1); if ($q.Count) { Invoke-DeepUninstall -Keys @($q[0].Key) } } }
     )
     $failed = 0
     foreach ($s in $steps) {

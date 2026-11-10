@@ -30,6 +30,8 @@ The Doctor in Arabic (right-to-left layout, 10 languages in total):
 
 - **Doctor: find and fix Windows problems.** Scans Windows Update, drivers, missing DLLs and runtimes, disk health, security settings and the event log, then fixes the items you pick.
 - **PC cleaner.** Temp files, Windows Update cache, browser caches, a disk space analyzer, TRIM for SSD and defrag for hard drives, and removal of preinstalled apps (debloat).
+- **Remove programs completely.** Lists your installed programs and Store apps, runs each one's own uninstaller, then finds what it left behind (folders, registry keys, scheduled tasks, shortcuts) and shows the list before deleting anything. Files go to the Recycle Bin; registry keys and tasks are saved first, so "Revert" brings them back. Runtimes such as Visual C++ and .NET are protected.
+- **Live monitor.** Processor, memory, disk and network use with a short history, drives, the processes using the most processor and memory, temperature and battery when Windows reports them. Read-only; nothing leaves the PC.
 - **Speed up Windows.** Performance power plan, startup manager (turn off or delay programs), optional services.
 - **Disk and boot.** Explains MBR vs GPT and BIOS vs UEFI for your PC, checks AHCI mode, TRIM and Windows 11 readiness, prepares Windows for AHCI, converts MBR to GPT with Windows' own tool (refuses on PCs that cannot start from UEFI), shows the BIOS key and menu steps for your maker and model, manages the UEFI boot order, and can read and change some BIOS options from Windows on Lenovo, HP and Dell PCs that expose them (experimental; Dell needs Dell Command | Monitor or Dell Command | Configure). It cannot change the BIOS on other PCs: Windows has no standard way to do that, so it tells you exactly what to do in the BIOS menu instead.
 - **Update and repair.** App updates through winget, SFC and DISM, driver backup and restore.
@@ -122,6 +124,7 @@ Files created at run time (`turbo_log.txt`, `turbo_errors.log`, `turbo_undo.json
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\app\TurboOptimizer.ps1 -SelfTest
 powershell -ExecutionPolicy Bypass -File .\app\TurboOptimizerWeb.ps1 -Test -TestAll
+powershell -ExecutionPolicy Bypass -File .\tests\test-programs.ps1
 ```
 
 ```powershell

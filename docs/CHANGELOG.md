@@ -1,5 +1,12 @@
 # Changelog
 
+## v12.7
+
+- Live monitor (new "Monitor" page, option 31 in the console): processor, memory, disk and network use with a short history, drives, the processes using the most processor and memory, temperature and battery when available. Read-only. It uses Windows performance classes that have English names, so it works on every Windows language.
+- Remove programs completely (Clean and space, option 32 in the console): pick installed programs or Store apps, search and sort by size. The program's own uninstaller runs first (quietly for MSI), then the tool looks for what is left: the install folder and folders with the same name, shortcuts, registry keys with the program's name, and scheduled tasks and orphan services that point into the old folder. You see the list and approve before anything is deleted. Files go to the Recycle Bin; registry keys and tasks are exported first and can be brought back with Revert. Matching is conservative (exact name, versions ignored; publisher folders only when empty), and runtimes such as Visual C++, .NET and WebView2 are protected.
+- If a program's uninstaller is broken or missing, the tool asks before cleaning its leftovers anyway.
+- Tests: leftover finder on a temporary tree and registry key, uninstall command parsing, monitor sample; 4 more self-test steps. 35 new texts in all 10 languages.
+
 ## v12.6
 
 - Fix: the new BIOS actions (boot order, BIOS settings, Dell tool, conversion to GPT) no longer wait for an answer when the tool runs unattended (self-test, scheduled watch, automated checks on a UEFI PC). Added tests for that.

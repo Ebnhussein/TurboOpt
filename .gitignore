@@ -3,6 +3,7 @@ turbo_log.txt
 turbo_errors.log
 turbo_ui_errors.log
 turbo_undo.json
+turbo_backups/
 turbo_acks.json
 turbo_ui.json
 turbo_health.json

@@ -165,6 +165,29 @@ table.lst{width:100%;border-collapse:collapse}
 table.lst td{padding:10px 20px;border-top:1px solid var(--line);vertical-align:middle}
 table.lst tr:hover td{background:var(--surface2)}
 table.lst .cmd{color:var(--muted);font-size:12.5px;direction:ltr;unicode-bidi:plaintext;text-align:start;word-break:break-all}
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.mcard{background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);min-width:0}
+.mcard .l{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.mcard .v{font-size:26px;font-weight:700;direction:ltr;unicode-bidi:plaintext;text-align:start}
+.mcard .s{font-size:12.5px;color:var(--muted);direction:ltr;unicode-bidi:plaintext;text-align:start;min-height:19px}
+.mcard svg.sp{width:100%;height:36px;margin-top:6px;display:block}
+.mcard svg.sp polyline{fill:none;stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke}
+.mcard.warn svg.sp polyline{stroke:var(--warn)}
+.mcard.bad svg.sp polyline{stroke:var(--bad)}
+.m2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mpanel{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:6px 0 8px;min-width:0}
+.mpanel h3{margin:0;padding:12px 18px 6px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.mrow{display:flex;align-items:center;gap:10px;padding:7px 18px;font-size:13.5px}
+.mrow .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;unicode-bidi:plaintext;text-align:start}
+.mrow .n i{color:var(--muted);font-style:normal;font-size:12px;margin-inline-start:6px}
+.mrow .x{font-weight:700;direction:ltr;unicode-bidi:plaintext}
+.mrow .meter{flex:1;margin:0}
+.mfoot{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:13px;padding:2px 4px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--line)}
+.toolbar input[type=search]{flex:1;min-width:160px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0 12px}
+.hintline{padding:10px 20px;color:var(--muted);font-size:13px;border-bottom:1px solid var(--line)}
+.pmeta{color:var(--muted);font-size:12.5px;direction:ltr;unicode-bidi:plaintext;text-align:start}
+.ptag{display:inline-block;border-radius:999px;background:var(--surface2);color:var(--muted);font-size:11.5px;font-weight:700;padding:1px 8px;margin-inline-start:6px}
 .num{width:72px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:0 10px}
 
 /* modals */
@@ -187,7 +210,7 @@ table.lst .cmd{color:var(--muted);font-size:12.5px;direction:ltr;unicode-bidi:pl
 .radios label{display:flex;gap:12px;align-items:center;min-height:44px;cursor:pointer}
 .radios input{width:20px;height:20px;accent-color:var(--accent)}
 .toast{position:fixed;inset-inline-end:20px;bottom:20px;background:var(--bad);color:#fff;padding:12px 18px;border-radius:12px;display:none;z-index:30;font-weight:600}
-@media (max-width:820px){.side{width:64px}.nav span.t{display:none}.nav{justify-content:center;padding:0}.stats{grid-template-columns:1fr}.side .foot{display:none}main{padding:16px}}
+@media (max-width:820px){.mgrid{grid-template-columns:1fr 1fr}.m2{grid-template-columns:1fr}.side{width:64px}.nav span.t{display:none}.nav{justify-content:center;padding:0}.stats{grid-template-columns:1fr}.side .foot{display:none}main{padding:16px}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -214,7 +237,7 @@ const BOOT = __BOOT__;
 const TOKEN = BOOT.token;
 const $ = id => document.getElementById(id);
 let lang = BOOT.lang, cat = 'home', view = 'home', busy = false, since = 0, info = null, lastPromptId = 0, lastDialogId = 0, modalOpen = false, offline = 0;
-let infoJson = '', taskKey = '', results = null, startup = null, task = {state:'idle', title:'', secs:0}, work = '', elapsed = 0, stepI = 0, stepN = 0, selected = new Set(), expanded = new Set(), showInfo = false;
+let infoJson = '', taskKey = '', results = null, startup = null, task = {state:'idle', title:'', secs:0}, work = '', elapsed = 0, stepI = 0, stepN = 0, selected = new Set(), expanded = new Set(), showInfo = false, programs = null, pFilter = '', pSort = 'size', monData = null, monHist = {cpu:[],ram:[],disk:[],net:[]};
 const P = {
   home:'M3 11l9-8 9 8M5 10v10h14V10M10 20v-6h4v6', clean:'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',
   speed:'M13 2L4 14h7l-1 8 9-12h-7z', update:'M21 12a9 9 0 1 1-3-6.7M21 3v6h-6', network:'M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0M12 20h.01',
@@ -223,10 +246,10 @@ const P = {
   chev:'M9 6l6 6-6 6', stop:'M7 7h10v10H7z', search:'M11 11m-7 0a7 7 0 1 0 14 0a7 7 0 1 0-14 0M21 21l-4.3-4.3', activity:'M3 12h4l2-5 4 10 2-5h6',
   info:'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 8h.01M11 12h1v5h1', lock:'M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3', file:'M6 3h9l4 4v14H6zM14 3v5h5',
   trash:'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', play:'M8 5l11 7-11 7z', disk:'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0', pie:'M21 12A9 9 0 1 1 12 3v9z',
-  sliders:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4', back:'M15 6l-6 6 6 6', wrench:'M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 3 11.4 11.4 3z'
+  monitor:'M3 12h4l2-6 4 12 2-6h6', sliders:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4', back:'M15 6l-6 6 6 6', wrench:'M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 3 11.4 11.4 3z'
 };
 function icon(n,cls){return '<svg class="i '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true"><path d="'+(P[n]||P.info)+'"/></svg>';}
-const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_boot:'disk',act_ahci:'speed',act_gpt:'wrench',act_bios:'sliders',act_fw:'update',act_guide:'info',act_order:'sliders',act_dump:'file',act_auto:'update',act_uninstall:'trash',act_restore:'safety',act_revert:'back'};
+const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_programs:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_boot:'disk',act_ahci:'speed',act_gpt:'wrench',act_bios:'sliders',act_fw:'update',act_guide:'info',act_order:'sliders',act_dump:'file',act_auto:'update',act_uninstall:'trash',act_restore:'safety',act_revert:'back'};
 const COLORS = {Black:'#cccccc',DarkBlue:'#5c8dff',DarkGreen:'#3fb950',DarkCyan:'#39c5cf',DarkRed:'#ff6b6b',DarkMagenta:'#d2a8ff',DarkYellow:'#d29922',Gray:'#cccccc',DarkGray:'#8b949e',Blue:'#79c0ff',Green:'#56d364',Cyan:'#56d4dd',Red:'#ff7b72',Magenta:'#d2a8ff',Yellow:'#e3b341',White:'#ffffff'};
 const PROMPTS=[
  [/^\s*Close (.+?) now\? Unsaved work/,'p_close'],[/^\s*Create a restore point first\?/,'p_restore'],[/^\s*Continue\?/,'p_continue'],[/^\s*Delete these files\?/,'p_delete'],
@@ -234,7 +257,8 @@ const PROMPTS=[
  [/^\s*Download and install (.+?) from Microsoft/,'p_winget'],[/^\s*Revert all of these/,'p_revert'],[/^\s*Restart Windows now\?/,'p_restart'],
  [/^\s*Scan again to confirm\?/,'p_rescan'],[/^\s*Wi-Fi will drop for a few seconds/,'p_wifi'],[/^\s*Bluetooth devices will disconnect/,'p_bt'],
  [/^\s*First undo the changes this tool made/,'p_undofirst'],[/^\s*Remove Turbo Optimizer from this PC\?/,'p_uninstall'],
- [/^\s*Open it in your browser\?/,'p_openreport'],[/^\s*Back up the drivers now\?/,'p_drvbackup']];
+ [/^\s*Open it in your browser\?/,'p_openreport'],[/^\s*Back up the drivers now\?/,'p_drvbackup'],
+ [/^\s*Uninstall (\d+) program\(s\) and clean up/,'p_uninst'],[/^\s*Delete these leftovers\?/,'p_leftovers'],[/^\s*Its uninstaller could not run/,'p_force']];
 function trPrompt(t){ for(const [re,k] of PROMPTS){ const m=t.match(re); if(m) return fmt(T(k),...m.slice(1)); } return t; }
 function T(k){const l=BOOT.S[lang];if(l&&l[k]!==undefined)return l[k];return BOOT.S.en[k]!==undefined?BOOT.S.en[k]:k;}
 function fmt(s,...a){return s.replace(/\{(\d+)\}/g,(m,i)=>a[i]);}
@@ -263,10 +287,10 @@ function applyLang(){
 function buildSide(){
   const s=$('side'); s.innerHTML='';
   for(const c of BOOT.cats){
-    const cur=(view==='cat'&&cat===c.id)||(view==='home'&&c.id==='home')||((view==='results'||view==='startup')&&c.id===(view==='startup'?'speed':'home'));
+    const cur=(view==='cat'&&cat===c.id)||(view==='home'&&c.id==='home')||(view==='monitor'&&c.id==='monitor')||((view==='results'||view==='startup'||view==='programs')&&c.id===(view==='startup'?'speed':(view==='programs'?'clean':'home')));
     const b=el('button',{class:'nav',html:icon(c.id)+'<span class="t"></span>'}); b.querySelector('.t').textContent=T(c.k);
     if(cur) b.setAttribute('aria-current','page'); b.title=T(c.k);
-    b.disabled=busy; b.onclick=()=>{ if(view==='results'||view==='startup') closeDialog(); cat=c.id; view=c.id==='home'?'home':'cat'; buildSide(); render(); $('main').scrollTop=0; };
+    b.disabled=busy; b.onclick=()=>{ if(view==='results'||view==='startup'||view==='programs') closeDialog(); cat=c.id; view=c.id==='home'?'home':(c.id==='monitor'?'monitor':'cat'); buildSide(); render(); $('main').scrollTop=0; if(view==='monitor') monTick(); };
     s.append(b);
   }
   const ab=el('button',{class:'nav',html:icon('info')+'<span class="t"></span>'}); ab.querySelector('.t').textContent=T('about'); ab.title=T('about'); ab.onclick=aboutModal;
@@ -280,6 +304,8 @@ function render(){
   const v=$('view'); v.innerHTML='';
   if(view==='results') return renderResults(v);
   if(view==='startup') return renderStartup(v);
+  if(view==='programs') return renderPrograms(v);
+  if(view==='monitor') return renderMonitor(v);
   if(view==='cat') return renderCategory(v);
   renderHome(v);
 }
@@ -381,8 +407,8 @@ async function sendFix(mode){
   try{ await closeDialog(true); await api('/api/fix',{ids,mode}); }catch(e){ toast(e.message); }
 }
 async function closeDialog(keepView){
-  const id=(results&&results.id)||(startup&&startup.id);
-  results=null; startup=null; selected.clear(); expanded.clear(); showInfo=false;
+  const id=(results&&results.id)||(startup&&startup.id)||(programs&&programs.id);
+  results=null; startup=null; programs=null; pFilter=''; selected.clear(); expanded.clear(); showInfo=false;
   view=cat==='home'||!catOf(cat)?'home':'cat'; buildSide(); render();
   if(id) try{ await api('/api/dialog_close',{id}); }catch(e){}
 }
@@ -419,6 +445,111 @@ function renderStartupBar(){
   const cls=el('button',{class:'btn ghost',text:T('dlg_close')}); cls.onclick=()=>closeDialog();
   bar.append(dis,del,el('span',{class:'tag',style:'color:var(--muted)',text:T('dlg_minutes')}),mins,el('span',{class:'sp'}),cls);
 }
+
+// remove programs completely
+function openPrograms(d){ programs=d; selected=new Set(); pFilter=''; view='programs'; buildSide(); render(); $('main').scrollTop=0; }
+function fmtMB(mb){ return mb>=1024?(mb/1024).toFixed(1)+' GB':mb+' MB'; }
+function renderPrograms(v){
+  const panel=el('section',{class:'panel'}); const head=el('header',{});
+  const x=el('button',{class:'btn icon ghost','aria-label':T('dlg_close'),html:icon('x')}); x.onclick=()=>closeDialog();
+  head.append(el('h1',{text:T('dlg_programs')}),x); panel.append(head);
+  panel.append(el('div',{class:'hintline',text:T('prog_hint')}));
+  const tb=el('div',{class:'toolbar'});
+  const q=el('input',{type:'search',placeholder:T('prog_search'),'aria-label':T('prog_search')}); q.value=pFilter;
+  q.oninput=()=>{ pFilter=q.value; fillPrograms(); };
+  const sz=el('button',{class:'btn'+(pSort==='size'?' primary':''),text:T('prog_sort_size')}), nm=el('button',{class:'btn'+(pSort==='name'?' primary':''),text:T('prog_sort_name')});
+  sz.onclick=()=>{ pSort='size'; render(); }; nm.onclick=()=>{ pSort='name'; render(); };
+  tb.append(q,sz,nm); panel.append(tb);
+  panel.append(el('div',{id:'plist'}));
+  panel.append(el('div',{class:'stickybar',id:'pbar'}));
+  v.append(panel); fillPrograms(); renderProgramsBar();
+}
+function fillPrograms(){
+  const box=$('plist'); if(!box) return; box.innerHTML='';
+  let items=((programs&&programs.items)||[]).slice();
+  const f=pFilter.trim().toLowerCase();
+  if(f) items=items.filter(i=>((i.Name||'')+' '+(i.Publisher||'')).toLowerCase().includes(f));
+  items.sort(pSort==='size'?((a,b)=>(b.SizeMB-a.SizeMB)||a.Name.localeCompare(b.Name)):((a,b)=>a.Name.localeCompare(b.Name)));
+  if(!items.length){ box.append(el('div',{class:'empty',text:T('prog_none')})); return; }
+  const tbl=el('table',{class:'lst'});
+  for(const p of items){
+    const cb=el('input',{type:'checkbox','aria-label':p.Name}); cb.style.cssText='width:22px;height:22px;accent-color:var(--accent)'; cb.disabled=!!p.Protected; cb.checked=selected.has(p.Key);
+    cb.onchange=()=>{ if(cb.checked) selected.add(p.Key); else selected.delete(p.Key); renderProgramsBar(); };
+    const name=el('div',{style:'font-weight:600'+(p.Protected?';color:var(--muted)':''),text:p.Name});
+    if(p.Store) name.append(el('span',{class:'ptag',text:T('prog_store')}));
+    if(p.Protected) name.append(el('span',{class:'ptag',text:T('tag_protected')}));
+    const meta=[p.Publisher,p.Version,p.SizeMB?fmtMB(p.SizeMB):''].filter(Boolean).join('  \u00b7  ');
+    const tr=el('tr',{},el('td',{style:'width:44px'},cb),el('td',{},name,el('div',{class:'pmeta',text:meta})));
+    if(!p.Protected){ tr.style.cursor='pointer'; tr.addEventListener('click',e=>{ if(e.target===cb) return; cb.checked=!cb.checked; cb.onchange(); }); }
+    tbl.append(tr);
+  }
+  box.append(tbl);
+}
+function renderProgramsBar(){
+  const bar=$('pbar'); if(!bar) return; bar.innerHTML='';
+  const n=selected.size;
+  const go=el('button',{class:'btn primary big',text:fmt(T('prog_remove'),n)}); go.disabled=!n;
+  go.onclick=async()=>{ const keys=[...selected]; try{ await closeDialog(true); await api('/api/uninstall',{keys}); }catch(e){ toast(e.status===409?T('working'):e.message); } poll(); };
+  const cls=el('button',{class:'btn ghost',text:T('dlg_close')}); cls.onclick=()=>closeDialog();
+  bar.append(go,el('span',{class:'sp'}),cls);
+}
+
+// live monitor
+function rate(kb){ return kb>=1024?(kb/1024).toFixed(1)+' MB/s':Math.round(kb)+' KB/s'; }
+function spark(arr){
+  const n=60, pts=arr.slice(-n);
+  if(pts.length<2) return '<svg class="sp" viewBox="0 0 100 36" preserveAspectRatio="none"></svg>';
+  const top=Math.max(1,...pts), step=100/(n-1), off=(n-pts.length)*step;
+  const d=pts.map((p,i)=>(off+i*step).toFixed(1)+','+(34-(p/top)*32).toFixed(1)).join(' ');
+  return '<svg class="sp" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><polyline points="'+d+'"/></svg>';
+}
+function mcard(label,value,sub,series,pct){
+  const c=el('div',{class:'mcard'+(pct>=90?' bad':(pct>=70?' warn':''))},el('div',{class:'l',text:label}),el('div',{class:'v',text:value}),el('div',{class:'s',text:sub||''}));
+  c.insertAdjacentHTML('beforeend',spark(series)); return c;
+}
+function renderMonitor(v){
+  v.append(el('div',{class:'pagehead',html:'<h1></h1>'})); v.querySelector('h1').textContent=T('mon_title');
+  const m=monData;
+  if(!m){ v.append(el('div',{class:'sub',text:T('mon_loading')})); return; }
+  const na=T('mon_na');
+  const g=el('div',{class:'mgrid'});
+  g.append(mcard(T('mon_cpu'),m.Cpu==null?na:m.Cpu+' %',fmt(T('mon_cores'),m.Cores),monHist.cpu,m.Cpu||0),
+           mcard(T('mon_ram'),m.RamPct==null?na:m.RamPct+' %',fmt(T('mon_of'),m.RamUsedGB,m.RamTotalGB),monHist.ram,m.RamPct||0),
+           mcard(T('mon_disk'),m.DiskPct==null?na:m.DiskPct+' %',T('mon_read')+' '+rate(m.DiskReadKB)+'   '+T('mon_write')+' '+rate(m.DiskWriteKB),monHist.disk,m.DiskPct||0),
+           mcard(T('mon_net'),'\u2193 '+rate(m.NetDownKB),'\u2191 '+rate(m.NetUpKB),monHist.net,0));
+  v.append(g);
+  const dr=(m.Drives||[]);
+  if(dr.length){
+    const p=el('div',{class:'mpanel'},el('h3',{text:T('mon_drives')}));
+    for(const d of dr){ const used=d.SizeGB?Math.round((1-d.FreeGB/d.SizeGB)*100):0;
+      p.append(el('div',{class:'mrow'},el('span',{class:'n',text:d.Name}),el('div',{class:'meter'+(used>90?' warn':'')},el('i',{style:'width:'+used+'%'})),el('span',{class:'x',text:fmt(T('mon_free'),d.FreeGB,d.SizeGB)}))); }
+    v.append(p);
+  }
+  const two=el('div',{class:'m2'});
+  const top=(title,list,byRam)=>{ const p=el('div',{class:'mpanel'},el('h3',{text:title}));
+    for(const r of list) p.append(el('div',{class:'mrow'},el('span',{class:'n',text:r.Name},r.N>1?el('i',{text:'\u00d7'+r.N}):null),el('span',{class:'x',text:byRam?fmtMB(r.MemMB):r.Cpu+' %'})));
+    return p; };
+  two.append(top(T('mon_top_cpu'),m.TopCpu||[],false),top(T('mon_top_ram'),m.TopRam||[],true)); v.append(two);
+  const up=m.UptimeSec||0, ft=el('div',{class:'mfoot'});
+  ft.append(el('span',{text:fmt(T('mon_uptime'),Math.floor(up/86400),Math.floor(up%86400/3600),Math.floor(up%3600/60))}),el('span',{text:fmt(T('mon_procs'),m.Procs)}));
+  if(m.TempC!=null) ft.append(el('span',{text:fmt(T('mon_temp'),m.TempC)}));
+  if(m.Battery!=null) ft.append(el('span',{text:fmt(T('mon_battery'),m.Battery)+(m.Charging?'  ('+T('mon_charging')+')':'')}));
+  v.append(ft, el('div',{class:'mfoot',text:T('mon_note')}));
+}
+let monBusy=false;
+async function monTick(){
+  if(view!=='monitor'||monBusy) return; monBusy=true;
+  try{
+    const r=await api('/api/monitor');
+    if(r.m){
+      monData=r.m;
+      const push=(a,x)=>{ a.push(x||0); if(a.length>60) a.shift(); };
+      push(monHist.cpu,r.m.Cpu); push(monHist.ram,r.m.RamPct); push(monHist.disk,r.m.DiskPct); push(monHist.net,(r.m.NetDownKB||0)+(r.m.NetUpKB||0));
+      if(view==='monitor') render();
+    }
+  }catch(e){} finally{ monBusy=false; }
+}
+setInterval(monTick,2500);
 
 // ---------------------------------------------------------------- task panel and log
 function renderTask(){
@@ -463,7 +594,7 @@ function showModal(node,cancel){
 function hideModal(){ $('veil').classList.remove('on'); modalOpen=false; modalCancel=null; if(lastFocus&&lastFocus.focus) try{lastFocus.focus();}catch(e){} }
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape') return;
-  if(modalCancel) modalCancel(); else if(view==='results'||view==='startup') closeDialog();
+  if(modalCancel) modalCancel(); else if(view==='results'||view==='startup'||view==='programs') closeDialog();
 });
 $('veil').addEventListener('mousedown',e=>{ if(e.target===$('veil')&&modalCancel) modalCancel(); });
 function askModal(text,yesLabel,noLabel){
@@ -556,7 +687,7 @@ async function poll(){
     if(was!==busy){ buildSide(); render(); }
     renderTask();
     if(r.prompt&&r.prompt.id!==lastPromptId&&!modalOpen) handlePrompt(r.prompt);
-    if(r.dialog&&r.dialog.id!==lastDialogId&&!modalOpen){ lastDialogId=r.dialog.id; if(r.dialog.k==='findings') openResults(r.dialog); else openStartup(r.dialog); }
+    if(r.dialog&&r.dialog.id!==lastDialogId&&!modalOpen){ lastDialogId=r.dialog.id; if(r.dialog.k==='findings') openResults(r.dialog); else if(r.dialog.k==='programs') openPrograms(r.dialog); else openStartup(r.dialog); }
   }catch(e){ if(++offline===8) toast(T('lost')); }
   finally{ polling=false; }
 }

@@ -52,6 +52,9 @@ jobs:
       - name: BIOS and boot logic (recorded samples, no hardware)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-bios-parsers.ps1
+      - name: Program removal and monitor logic (temporary files and registry key only)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .	ests	est-programs.ps1
       - name: Browser version API test (changes nothing)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\app\TurboOptimizerWeb.ps1 -Test
