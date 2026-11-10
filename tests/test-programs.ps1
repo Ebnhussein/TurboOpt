@@ -43,8 +43,9 @@ try {
     foreach ($k in '7-Zip', 'Other', 'Vendor\7-Zip') { New-Item -Path (Join-Path $regBase $k) -Force | Out-Null }
     $p = [pscustomobject]@{ Kind = 'Win32'; Name = '7-Zip 23.01 (x64)'; Publisher = 'Vendor'; InstallLocation = (Join-Path $tmp 'PF\7-Zip'); RegPath = 'HKCU:\Software\NoSuchKeyForTest'; PackageFullName = '' }
     $r = @(Find-Leftovers $p -FileRoots @((Join-Path $tmp 'PF'), (Join-Path $tmp 'AD')) -RegBases @($regBase) -ShortcutRoots @((Join-Path $tmp 'SM')))
-    $paths = @($r | ForEach-Object { $_.Path.ToLower() })
-    $has = { param($rel) $paths -contains (Join-Path $tmp $rel).ToLower() }
+    # compare the part below the temporary folder, so 8.3 short names (RUNNER~1) on the CI machine do not matter
+    $paths = @($r | ForEach-Object { ($_.Path -replace '^.*turbotest_[0-9a-f]{32}\\', '').ToLower() })
+    $has = { param($rel) $paths -contains $rel.ToLower() }
     Check 'leftovers: the install folder is found' (& $has 'PF\7-Zip')
     Check 'leftovers: a folder with the same name elsewhere is found' (& $has 'AD\7zip')
     Check 'leftovers: an empty publisher folder is found' (& $has 'PF\Vendor')
@@ -65,7 +66,7 @@ try {
     foreach ($l in $r) { Remove-Leftover $l | Out-Null }
     $script:DryRun = $false
     Check 'dry run: nothing was deleted' ((Test-Path (Join-Path $tmp 'PF\7-Zip')) -and (Test-Path (Join-Path $regBase '7-Zip')) -and (Test-Path (Join-Path $tmp 'SM\7-Zip.lnk')))
-} finally {
+} catch { Write-Output ("FAIL  unexpected error: " + $_.Exception.Message); $script:fails++ } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $regBase -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -141,7 +142,7 @@ try {
     Start-Sleep -Milliseconds 500
     Check 'end process: it is really gone' (-not (Get-Process -Id $sp.Id -ErrorAction SilentlyContinue))
     Check 'end process: protected and unsafe names are refused' ((Stop-ProcessByName 'explorer') -eq -1 -and (Stop-ProcessByName 'lsass') -eq -1 -and (Stop-ProcessByName 'powershell') -eq -1 -and (Stop-ProcessByName 'a*') -eq -1 -and (Stop-ProcessByName 'x; calc') -eq -1)
-} finally {
+} catch { Write-Output ("FAIL  unexpected error: " + $_.Exception.Message); $script:fails++ } finally {
     foreach ($k in $fakeKeys) { try { [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($k, $false) } catch {} }
     Get-Process -Name 'turbotest_sleeper' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Remove-Item Env:\FAKE_KEY, Env:\FAKE_DIR -ErrorAction SilentlyContinue
@@ -181,7 +182,7 @@ try {
     Check 'history: a missing file gives an empty summary' ((Get-PerfSummary 24 ($pf + '.none')).Count -eq 0)
     Set-Content -LiteralPath $pf -Value @('ts,cpu,ram,disk,net,temp,topcpu,topcpupct,topram,topmb', 'garbage line', ($now.ToString('yyyy-MM-dd HH:mm:ss') + ',x,1,1,1,1,a,1,b,1')) -Encoding ASCII
     Check 'history: damaged lines are skipped, not fatal' ((Get-PerfSummary 24 $pf).Count -eq 0)
-} finally { Remove-Item -LiteralPath $pf -Force -ErrorAction SilentlyContinue }
+} catch { Write-Output ("FAIL  unexpected error: " + $_.Exception.Message); $script:fails++ } finally { Remove-Item -LiteralPath $pf -Force -ErrorAction SilentlyContinue }
 
 # ---- real machine, read-only
 $sumry = Get-DeviceSummary
