@@ -187,6 +187,36 @@ table.lst .cmd{color:var(--muted);font-size:12.5px;direction:ltr;unicode-bidi:pl
 .toolbar input[type=search]{flex:1;min-width:160px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0 12px}
 .hintline{padding:10px 20px;color:var(--muted);font-size:13px;border-bottom:1px solid var(--line)}
 .pmeta{color:var(--muted);font-size:12.5px;direction:ltr;unicode-bidi:plaintext;text-align:start}
+.tips{display:flex;flex-direction:column;gap:8px}
+.tip{display:flex;align-items:center;gap:12px;border-radius:12px;padding:10px 14px;background:var(--surface);box-shadow:var(--shadow);border-inline-start:4px solid var(--muted);font-size:14px}
+.tip.warn{border-inline-start-color:var(--warn);background:var(--warn-soft)}
+.tip.bad{border-inline-start-color:var(--bad);background:var(--bad-soft)}
+.tip .ti svg{width:20px;height:20px;stroke-width:2;display:block}
+.tip .tt{flex:1;min-width:0}
+.tip .btn{min-height:36px;padding:0 12px;flex:none}
+.endx{background:none;border:0;color:var(--muted);width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
+.endx:hover{background:var(--bad-soft);color:var(--bad)}
+.endx svg{width:16px;height:16px;stroke-width:2.2}
+.nav .dot{width:9px;height:9px;border-radius:50%;background:var(--bad);margin-inline-start:auto;flex:none}
+.histbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 18px 8px}
+.histbar .btn{min-height:36px;padding:0 12px}
+.histbar .st{font-size:13px;font-weight:700;color:var(--muted)}
+.histbar .st.on{color:var(--ok)}
+.histchart{padding:4px 18px}
+.histchart svg.hist{width:100%;height:120px;display:block;background:var(--surface2);border-radius:10px}
+.histchart polyline{fill:none;stroke-width:1.8;vector-effect:non-scaling-stroke}
+.histchart polyline.c{stroke:var(--accent)}
+.histchart polyline.r{stroke:var(--warn)}
+.histleg{display:flex;gap:16px;font-size:12.5px;color:var(--muted);padding:6px 18px 0;flex-wrap:wrap}
+.histleg i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-inline-end:6px;vertical-align:middle}
+.sumhero{display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+.score{--c:var(--muted);width:150px;height:150px;border-radius:50%;display:grid;place-content:center;text-align:center;position:relative;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--surface2) 0);flex:none}
+.score::before{content:'';position:absolute;inset:13px;border-radius:50%;background:var(--surface)}
+.score b,.score small{position:relative}
+.score b{font-size:42px;line-height:1}
+.score small{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.score.ok{--c:var(--ok)}.score.warn{--c:var(--warn)}.score.bad{--c:var(--bad)}
+.sumhero .parts{flex:1;min-width:260px}
 .ptag{display:inline-block;border-radius:999px;background:var(--surface2);color:var(--muted);font-size:11.5px;font-weight:700;padding:1px 8px;margin-inline-start:6px}
 .num{width:72px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:0 10px}
 
@@ -237,7 +267,7 @@ const BOOT = __BOOT__;
 const TOKEN = BOOT.token;
 const $ = id => document.getElementById(id);
 let lang = BOOT.lang, cat = 'home', view = 'home', busy = false, since = 0, info = null, lastPromptId = 0, lastDialogId = 0, modalOpen = false, offline = 0;
-let infoJson = '', taskKey = '', results = null, startup = null, task = {state:'idle', title:'', secs:0}, work = '', elapsed = 0, stepI = 0, stepN = 0, selected = new Set(), expanded = new Set(), showInfo = false, programs = null, pFilter = '', pSort = 'size', monData = null, monHist = {cpu:[],ram:[],disk:[],net:[]};
+let infoJson = '', taskKey = '', results = null, startup = null, task = {state:'idle', title:'', secs:0}, work = '', elapsed = 0, stepI = 0, stepN = 0, selected = new Set(), expanded = new Set(), showInfo = false, programs = null, pFilter = '', pSort = 'size', monData = null, monHist = {cpu:[],ram:[],disk:[],net:[]}, sumData = null, sumAt = 0, sumBusy = false, histHours = 24, histData = null, monAlert = false, monSeen = {}, monShown = {}, monSkip = 0, uiHold = 0;
 const P = {
   home:'M3 11l9-8 9 8M5 10v10h14V10M10 20v-6h4v6', clean:'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',
   speed:'M13 2L4 14h7l-1 8 9-12h-7z', update:'M21 12a9 9 0 1 1-3-6.7M21 3v6h-6', network:'M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0M12 20h.01',
@@ -246,7 +276,7 @@ const P = {
   chev:'M9 6l6 6-6 6', stop:'M7 7h10v10H7z', search:'M11 11m-7 0a7 7 0 1 0 14 0a7 7 0 1 0-14 0M21 21l-4.3-4.3', activity:'M3 12h4l2-5 4 10 2-5h6',
   info:'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 8h.01M11 12h1v5h1', lock:'M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3', file:'M6 3h9l4 4v14H6zM14 3v5h5',
   trash:'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', play:'M8 5l11 7-11 7z', disk:'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0', pie:'M21 12A9 9 0 1 1 12 3v9z',
-  monitor:'M3 12h4l2-6 4 12 2-6h6', sliders:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4', back:'M15 6l-6 6 6 6', wrench:'M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 3 11.4 11.4 3z'
+  summary:'M12 21s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z', monitor:'M3 12h4l2-6 4 12 2-6h6', sliders:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4', back:'M15 6l-6 6 6 6', wrench:'M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 3 11.4 11.4 3z'
 };
 function icon(n,cls){return '<svg class="i '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true"><path d="'+(P[n]||P.info)+'"/></svg>';}
 const ACT_ICON = {act_doctor:'activity',act_diag:'search',act_all:'speed',act_report:'file',act_clean:'clean',act_space:'pie',act_disks:'disk',act_debloat:'trash',act_programs:'trash',act_turbo:'speed',act_startup:'play',act_services:'sliders',act_update:'update',act_repair:'wrench',act_def_off:'lock',act_def_on:'security',act_sec_check:'security',act_boot:'disk',act_ahci:'speed',act_gpt:'wrench',act_bios:'sliders',act_fw:'update',act_guide:'info',act_order:'sliders',act_dump:'file',act_auto:'update',act_uninstall:'trash',act_restore:'safety',act_revert:'back'};
@@ -287,10 +317,11 @@ function applyLang(){
 function buildSide(){
   const s=$('side'); s.innerHTML='';
   for(const c of BOOT.cats){
-    const cur=(view==='cat'&&cat===c.id)||(view==='home'&&c.id==='home')||(view==='monitor'&&c.id==='monitor')||((view==='results'||view==='startup'||view==='programs')&&c.id===(view==='startup'?'speed':(view==='programs'?'clean':'home')));
+    const cur=(view==='cat'&&cat===c.id)||(view==='home'&&c.id==='home')||(view==='monitor'&&c.id==='monitor')||(view==='summary'&&c.id==='summary')||((view==='results'||view==='startup'||view==='programs')&&c.id===(view==='startup'?'speed':(view==='programs'?'clean':'home')));
     const b=el('button',{class:'nav',html:icon(c.id)+'<span class="t"></span>'}); b.querySelector('.t').textContent=T(c.k);
     if(cur) b.setAttribute('aria-current','page'); b.title=T(c.k);
-    b.disabled=busy; b.onclick=()=>{ if(view==='results'||view==='startup'||view==='programs') closeDialog(); cat=c.id; view=c.id==='home'?'home':(c.id==='monitor'?'monitor':'cat'); buildSide(); render(); $('main').scrollTop=0; if(view==='monitor') monTick(); };
+    b.disabled=busy; b.onclick=()=>{ if(view==='results'||view==='startup'||view==='programs') closeDialog(); cat=c.id; view=(c.id==='home'||c.id==='monitor'||c.id==='summary')?c.id:'cat'; buildSide(); render(); $('main').scrollTop=0; if(view==='monitor'){ monTick(true); loadHist(); } if(view==='summary') sumTick(true); };
+    if(c.id==='monitor'&&monAlert) b.append(el('i',{class:'dot'}));
     s.append(b);
   }
   const ab=el('button',{class:'nav',html:icon('info')+'<span class="t"></span>'}); ab.querySelector('.t').textContent=T('about'); ab.title=T('about'); ab.onclick=aboutModal;
@@ -306,6 +337,7 @@ function render(){
   if(view==='startup') return renderStartup(v);
   if(view==='programs') return renderPrograms(v);
   if(view==='monitor') return renderMonitor(v);
+  if(view==='summary') return renderSummary(v);
   if(view==='cat') return renderCategory(v);
   renderHome(v);
 }
@@ -507,10 +539,70 @@ function mcard(label,value,sub,series,pct){
   const c=el('div',{class:'mcard'+(pct>=90?' bad':(pct>=70?' warn':''))},el('div',{class:'l',text:label}),el('div',{class:'v',text:value}),el('div',{class:'s',text:sub||''}));
   c.insertAdjacentHTML('beforeend',spark(series)); return c;
 }
+function tipText(t){ return fmt(T('tip_'+t.Id),t.A1,t.A2); }
+function findProc(m,name){ for(const l of [m.TopCpu||[],m.TopRam||[]]) for(const r of l) if(r.Name===name) return r; return null; }
+function goCat(id){ cat=id; view='cat'; buildSide(); render(); $('main').scrollTop=0; }
+async function endProc(name){
+  if(!await askModal(fmt(T('mon_end_q'),name))) return;
+  try{ await api('/api/endproc',{name}); toast(fmt(T('mon_end_done'),name)); }catch(e){ toast(T('mon_end_fail')); }
+  monTick(true); if(view==='summary') setTimeout(()=>sumTick(true),1500);
+}
+function goFor(t){
+  const mk=(k,fn)=>{ const b=el('button',{class:'btn',text:T(k)}); b.onclick=fn; return b; };
+  if(t.Id==='disk_low'||t.Id==='disk_busy') return mk('sum_go_clean',()=>goCat('clean'));
+  if(t.Id==='startup_many'){ const a=actOf('act_startup'); return a?mk('sum_go_startup',()=>runAction(a)):null; }
+  if(t.Id==='findings_high'||t.Id==='no_scan'){ const a=actOf('act_doctor'); return a?mk('sum_go_check',()=>runAction(a)):null; }
+  return null;
+}
+function tipRow(t,m){
+  const row=el('div',{class:'tip '+t.Level},el('span',{class:'ti',html:icon(t.Level==='info'?'info':'alert')}),el('span',{class:'tt',text:tipText(t)}));
+  const pr=(t.Id==='cpu_high'||t.Id==='ram_high')?findProc(m,t.A1):null;
+  if(pr&&!pr.Protected){ const b=el('button',{class:'btn',text:fmt(T('mon_end_btn'),t.A1)}); b.onclick=()=>endProc(t.A1); row.append(b); }
+  else { const g=goFor(t); if(g) row.append(g); }
+  return row;
+}
+function fmtT(ts){ try{ return new Date(ts).toLocaleString(lang,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return String(ts); } }
+function histChart(pts){
+  const n=pts.length; if(n<2) return '';
+  const step=100/(n-1), line=k=>pts.map((p,i)=>(i*step).toFixed(1)+','+(38-(Math.min(100,p[k])/100)*36).toFixed(1)).join(' ');
+  return '<svg class="hist" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polyline class="c" points="'+line('Cpu')+'"/><polyline class="r" points="'+line('Ram')+'"/></svg>';
+}
+async function loadHist(){
+  try{ const r=await api('/api/perf?h='+histHours); histData=r; if(view==='monitor') safeRender(); }catch(e){}
+}
+function histPanel(){
+  const p=el('div',{class:'mpanel hist'},el('h3',{text:T('hist_title')}));
+  const bar=el('div',{class:'histbar'});
+  for(const [h,k] of [[24,'hist_24'],[168,'hist_7d']]){ const bt=el('button',{class:'btn'+(histHours===h?' primary':''),text:T(k)}); bt.onclick=()=>{ histHours=h; histData=null; render(); loadHist(); }; bar.append(bt); }
+  const on=!!(histData&&histData.on);
+  bar.append(el('span',{class:'st'+(on?' on':''),text:histData?T(on?'hist_on':'hist_off'):''}));
+  const tg=el('button',{class:'btn',text:T(on?'hist_disable':'hist_enable')}); tg.disabled=busy||!histData;
+  tg.onclick=async()=>{ try{ await api('/api/perflog',{on:!on}); }catch(e){ toast(e.status===409?T('working'):e.message); } poll(); setTimeout(loadHist,5000); setTimeout(loadHist,15000); };
+  bar.append(tg); p.append(bar);
+  p.append(el('div',{class:'mfoot',style:'padding:0 18px 6px',text:T('hist_about')}));
+  const s=histData&&histData.s;
+  if(!s||!s.Count){ p.append(el('div',{class:'sub',style:'padding:6px 18px 12px',text:histData?T('hist_none'):T('mon_loading')})); return p; }
+  const c=el('div',{class:'histchart'}); c.innerHTML=histChart(s.Points||[]); p.append(c);
+  const pts=s.Points||[];
+  if(pts.length) p.append(el('div',{class:'mfoot',style:'padding:4px 18px;justify-content:space-between'},el('span',{text:fmtT(pts[0].T)}),el('span',{text:fmtT(pts[pts.length-1].T)})));
+  p.append(el('div',{class:'histleg',html:'<span><i style="background:var(--accent)"></i></span><span><i style="background:var(--warn)"></i></span>'}));
+  const lg=p.querySelector('.histleg'); lg.children[0].append(document.createTextNode(T('hist_legend_cpu'))); lg.children[1].append(document.createTextNode(T('hist_legend_ram')));
+  p.append(el('div',{class:'mfoot',style:'padding:8px 18px 0'},el('span',{text:fmt(T('hist_avg'),s.AvgCpu,s.AvgRam)}),el('span',{text:fmt(T('hist_peak'),s.MaxCpu,s.MaxRam)})));
+  const w=s.Worst||[];
+  p.append(el('h3',{text:T('hist_worst')}));
+  if(!w.length) p.append(el('div',{class:'sub',style:'padding:0 18px 12px',text:T('hist_quiet')}));
+  for(const x of w){
+    const who=x.TopCpu?fmt(T('hist_top'),x.TopCpu):'';
+    p.append(el('div',{class:'mrow'},el('span',{class:'n',text:fmtT(x.T)}),el('span',{class:'x',text:fmt(T('hist_worst_row'),x.Cpu,x.Ram)}),el('span',{class:'n',style:'flex:2;color:var(--muted)',text:who})));
+  }
+  return p;
+}
 function renderMonitor(v){
   v.append(el('div',{class:'pagehead',html:'<h1></h1>'})); v.querySelector('h1').textContent=T('mon_title');
   const m=monData;
   if(!m){ v.append(el('div',{class:'sub',text:T('mon_loading')})); return; }
+  const tips=m.Tips||[];
+  if(tips.length){ const box=el('div',{class:'tips'}); for(const t of tips) box.append(tipRow(t,m)); v.append(box); }
   const na=T('mon_na');
   const g=el('div',{class:'mgrid'});
   g.append(mcard(T('mon_cpu'),m.Cpu==null?na:m.Cpu+' %',fmt(T('mon_cores'),m.Cores),monHist.cpu,m.Cpu||0),
@@ -527,7 +619,12 @@ function renderMonitor(v){
   }
   const two=el('div',{class:'m2'});
   const top=(title,list,byRam)=>{ const p=el('div',{class:'mpanel'},el('h3',{text:title}));
-    for(const r of list) p.append(el('div',{class:'mrow'},el('span',{class:'n',text:r.Name},r.N>1?el('i',{text:'\u00d7'+r.N}):null),el('span',{class:'x',text:byRam?fmtMB(r.MemMB):r.Cpu+' %'})));
+    for(const r of list){
+      const row=el('div',{class:'mrow'},el('span',{class:'n',text:r.Name},r.N>1?el('i',{text:'\u00d7'+r.N}):null),el('span',{class:'x',text:byRam?fmtMB(r.MemMB):r.Cpu+' %'}));
+      if(!r.Protected){ const x=el('button',{class:'endx',title:T('mon_end'),'aria-label':T('mon_end')+' '+r.Name,html:icon('x')}); x.onclick=()=>endProc(r.Name); row.append(x); }
+      else row.append(el('span',{style:'width:28px;flex:none'}));
+      p.append(row);
+    }
     return p; };
   two.append(top(T('mon_top_cpu'),m.TopCpu||[],false),top(T('mon_top_ram'),m.TopRam||[],true)); v.append(two);
   const up=m.UptimeSec||0, ft=el('div',{class:'mfoot'});
@@ -535,21 +632,72 @@ function renderMonitor(v){
   if(m.TempC!=null) ft.append(el('span',{text:fmt(T('mon_temp'),m.TempC)}));
   if(m.Battery!=null) ft.append(el('span',{text:fmt(T('mon_battery'),m.Battery)+(m.Charging?'  ('+T('mon_charging')+')':'')}));
   v.append(ft, el('div',{class:'mfoot',text:T('mon_note')}));
+  v.append(histPanel());
+}
+// keeps the page from being rebuilt under the user's finger or while a button has keyboard focus
+document.addEventListener('pointerdown',()=>{ uiHold=Date.now()+1200; });
+function safeRender(){
+  const a=document.activeElement;
+  if(modalOpen||Date.now()<uiHold||(a&&$('view').contains(a)&&/^(BUTTON|INPUT|SELECT)$/.test(a.tagName))) return;
+  render();
+}
+// advice that stays for 30 seconds becomes an alert: a message once every 10 minutes and a dot on the Monitor button
+function checkAlerts(m){
+  const now=Date.now(), cur={}; let any=false;
+  for(const t of (m.Tips||[])){
+    if(t.Level==='info') continue;
+    const k=t.Id+'|'+t.A1; cur[k]=true; if(!monSeen[k]) monSeen[k]=now;
+    if(now-monSeen[k]>=30000){ any=true; if(!monShown[k]||now-monShown[k]>600000){ monShown[k]=now; toast(tipText(t)); } }
+  }
+  for(const k in monSeen) if(!cur[k]) delete monSeen[k];
+  if(any!==monAlert){ monAlert=any; buildSide(); }
 }
 let monBusy=false;
-async function monTick(){
-  if(view!=='monitor'||monBusy) return; monBusy=true;
+async function monTick(force){
+  if(monBusy) return;
+  if(view!=='monitor'&&force!==true){ if(++monSkip<6) return; }
+  monSkip=0; monBusy=true;
   try{
     const r=await api('/api/monitor');
     if(r.m){
       monData=r.m;
       const push=(a,x)=>{ a.push(x||0); if(a.length>60) a.shift(); };
       push(monHist.cpu,r.m.Cpu); push(monHist.ram,r.m.RamPct); push(monHist.disk,r.m.DiskPct); push(monHist.net,(r.m.NetDownKB||0)+(r.m.NetUpKB||0));
-      if(view==='monitor') render();
+      checkAlerts(r.m);
+      if(view==='monitor') safeRender();
     }
   }catch(e){} finally{ monBusy=false; }
 }
 setInterval(monTick,2500);
+setInterval(()=>{ if(view==='monitor') loadHist(); },60000);
+
+// device summary
+function renderSummary(v){
+  v.append(el('div',{class:'pagehead',html:'<h1></h1>'})); v.querySelector('h1').textContent=T('sum_title');
+  const d=sumData;
+  if(!d){ v.append(el('div',{class:'sub',text:T('sum_loading')})); return; }
+  const sc=d.Score, cls=sc>=75?'ok':(sc>=50?'warn':'bad');
+  const hero=el('section',{class:'sumhero'},el('div',{class:'score '+cls,style:'--p:'+sc},el('b',{text:String(sc)}),el('small',{text:T('sum_score')})));
+  const parts=el('div',{class:'mpanel parts'});
+  for(const x of (d.Parts||[])){
+    const pct=Math.round(x.Pts/x.Max*100);
+    parts.append(el('div',{class:'mrow'},el('span',{class:'n',style:'flex:none;width:150px',text:T('sum_p_'+x.Id)}),el('div',{class:'meter'+(pct<50?' warn':'')},el('i',{style:'width:'+pct+'%'})),el('span',{class:'x',text:x.Pts+' / '+x.Max})));
+  }
+  hero.append(parts); v.append(hero);
+  v.append(el('h2',{class:'h2',text:T('sum_tips')}));
+  const tips=d.Tips||[], m=d.Sample||{};
+  if(!tips.length) v.append(el('div',{class:'tip',html:icon('check')+'<span class="tt"></span>'})), v.lastChild.querySelector('.tt').textContent=T('sum_ok');
+  else { const box=el('div',{class:'tips'}); for(const t of tips) box.append(tipRow(t,m)); v.append(box); }
+  const go=el('button',{class:'btn',text:T('sum_go_monitor'),style:'align-self:flex-start;margin-top:6px'}); go.onclick=()=>{ cat='monitor'; view='monitor'; buildSide(); render(); monTick(true); loadHist(); };
+  v.append(go);
+}
+async function sumTick(force){
+  if(view!=='summary'||sumBusy) return;
+  if(force!==true&&sumData&&Date.now()-sumAt<30000) return;
+  sumBusy=true;
+  try{ const r=await api('/api/summary'); if(r.d){ sumData=r.d; sumAt=Date.now(); if(view==='summary') safeRender(); } }catch(e){} finally{ sumBusy=false; }
+}
+setInterval(()=>sumTick(false),3000);
 
 // ---------------------------------------------------------------- task panel and log
 function renderTask(){

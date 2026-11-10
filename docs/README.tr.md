@@ -12,6 +12,8 @@ Kurulum yok, reklam yok, telemetri yok. PowerShell'e tek satır yapıştırın: 
 
 - **Doktor:** güncellemeleri, sürücüleri, DLL'leri, disk sağlığını, güvenliği ve olay günlüğünü tarar, seçtiklerinizi düzeltir.
 - **PC temizleyici:** geçici dosyalar, güncelleme ve tarayıcı önbellekleri, alan analizi, SSD için TRIM, önceden yüklü uygulamaları kaldırma.
+- **Programları tamamen kaldırma:** her programın kendi kaldırıcısını çalıştırır, sonra geride kalanları (klasörler, kayıt defteri anahtarları, görevler) bulur ve yalnızca onayınızla siler. Dosyalar geri dönüşüm kutusuna gider, her şey geri alınabilir.
+- **İzleyici ve cihaz özeti:** işlemci, bellek, disk ve ağ kullanımı canlı, öneri ve uyarılarla sağlık puanı, ağır programları kapatma ve bilgisayarın neden yavaşladığını gösteren performans geçmişi.
 - **Windows'u hızlandır:** yüksek performans güç planı, başlangıç yöneticisi, isteğe bağlı hizmetler.
 - **Güncelleme ve onarım:** winget ile uygulama güncelleme, SFC ve DISM, sürücü yedekleme ve geri yükleme.
 - **Ağ:** Wi-Fi ve Bluetooth düzeltmeleri, DNS hız testi, hosts dosyası ve Wi-Fi kanal kontrolü.

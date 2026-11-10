@@ -6,11 +6,11 @@
   Settings live in config.ini next to this script. Every change is recorded in turbo_undo.json (menu option 20 reverts).
 #>
 [CmdletBinding()]
-param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [switch]$Maintain, [switch]$AsLibrary, [switch]$Console, [switch]$Browser, [switch]$Monitor)
+param([switch]$SelfTest, [switch]$DryRun, [switch]$Doctor, [switch]$ScanOnly, [switch]$Maintain, [switch]$AsLibrary, [switch]$Console, [switch]$Browser, [switch]$Monitor, [switch]$PerfLog)
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'   # hides the blue PowerShell progress banner; we draw our own
-$script:Version    = '12.7'
+$script:Version    = '12.8'
 $script:Dir        = $PSScriptRoot
 $script:LogFile    = Join-Path $script:Dir 'turbo_log.txt'
 $script:Journal    = Join-Path $script:Dir 'turbo_undo.json'
@@ -35,7 +35,7 @@ trap {
 function Test-Admin {
     ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
-if (-not $SelfTest -and -not $AsLibrary -and -not (Test-Admin)) {
+if (-not $SelfTest -and -not $AsLibrary -and -not $PerfLog -and -not (Test-Admin)) {
     Write-Host 'Requesting administrator rights...'
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $PSCommandPath))
     if ($DryRun) { $argList += '-DryRun' }
@@ -3206,8 +3206,8 @@ function Get-MonitorSample {
             $g[$nm].N++
         }
         $all = @($g.Values)
-        $s.TopCpu = @($all | Sort-Object { $_.Cpu } -Descending | Select-Object -First 8 | ForEach-Object { @{ Name = $_.Name; Cpu = [math]::Round($_.Cpu, 1); MemMB = [int]$_.MemMB; N = $_.N } })
-        $s.TopRam = @($all | Sort-Object { $_.MemMB } -Descending | Select-Object -First 8 | ForEach-Object { @{ Name = $_.Name; Cpu = [math]::Round($_.Cpu, 1); MemMB = [int]$_.MemMB; N = $_.N } })
+        $s.TopCpu = @($all | Sort-Object { $_.Cpu } -Descending | Select-Object -First 8 | ForEach-Object { @{ Name = $_.Name; Cpu = [math]::Round($_.Cpu, 1); MemMB = [int]$_.MemMB; N = $_.N; Protected = (Test-ProcessProtected $_.Name) } })
+        $s.TopRam = @($all | Sort-Object { $_.MemMB } -Descending | Select-Object -First 8 | ForEach-Object { @{ Name = $_.Name; Cpu = [math]::Round($_.Cpu, 1); MemMB = [int]$_.MemMB; N = $_.N; Protected = (Test-ProcessProtected $_.Name) } })
     } catch {}
     try { $s.Drives = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' -ErrorAction Stop | Where-Object { $_.Size } | ForEach-Object { @{ Name = [string]$_.DeviceID; FreeGB = [math]::Round($_.FreeSpace / 1GB, 1); SizeGB = [math]::Round($_.Size / 1GB, 1) } }) } catch {}
     try {
@@ -3259,6 +3259,206 @@ function Invoke-MonitorView {
         Start-Sleep -Milliseconds 1500
         try { if ([Console]::KeyAvailable) { [void][Console]::ReadKey($true); break } } catch { break }
     }
+}
+
+# ---------------------------------------------------------------- monitor extras: end a process, tips, history, device summary
+# Processes that must never be ended from the monitor (Windows itself, Defender, the shell, and this tool).
+function Test-ProcessProtected([string]$Name) {
+    $n = ([string]$Name).ToLower() -replace '\.exe$', ''
+    if (-not $n) { return $true }
+    if ($n -match '^(system|idle|registry|smss|csrss|wininit|winlogon|services|lsass|lsm|svchost|dwm|fontdrvhost|explorer|memory compression|securityhealthservice|securityhealthsystray|msmpeng|nissrv|mpdefendercoreservice|taskhostw|sihost|ctfmon|audiodg|spoolsv|wudfhost|runtimebroker|searchindexer|startmenuexperiencehost|shellexperiencehost|textinputhost|applicationframehost|dllhost|conhost|wmiprvse|powershell|pwsh|powershell_ise)$') { return $true }
+    try { if ((Get-Process -Id $PID -ErrorAction Stop).ProcessName -ieq $n) { return $true } } catch {}
+    return $false
+}
+# Ends every process with this name. Returns how many were ended, or -1 when the name is refused.
+function Stop-ProcessByName([string]$Name) {
+    if ($Name -notmatch '^[\w\.\-\+ ()]{1,64}$' -or (Test-ProcessProtected $Name)) { return -1 }
+    $n = 0
+    foreach ($p in @(Get-Process -Name $Name -ErrorAction SilentlyContinue)) {
+        try { Stop-Process -Id $p.Id -Force -ErrorAction Stop; $n++ } catch {}
+    }
+    Write-Log "Ended $n process(es) named $Name from the monitor"
+    return $n
+}
+# Advice from one monitor sample. The console prints it in English, the browser translates it by Id.
+function Get-MonitorTips($S) {
+    $t = New-Object System.Collections.ArrayList
+    $add = { param($id, $lvl, $a1, $a2) [void]$t.Add(@{ Id = $id; Level = $lvl; A1 = [string]$a1; A2 = [string]$a2 }) }
+    $tc = @($S.TopCpu | Select-Object -First 1); $tr = @($S.TopRam | Select-Object -First 1)
+    if ($null -ne $S.Cpu -and $S.Cpu -ge 85 -and $tc.Count -and $tc[0].Cpu -ge 10) { & $add 'cpu_high' 'bad' $tc[0].Name $tc[0].Cpu }
+    if ($null -ne $S.RamPct -and $S.RamPct -ge 85 -and $tr.Count) { $lv = 'warn'; if ($S.RamPct -ge 92) { $lv = 'bad' }; & $add 'ram_high' $lv $tr[0].Name $tr[0].MemMB }
+    foreach ($d in @($S.Drives)) { if ($d.SizeGB -gt 0 -and ($d.FreeGB / $d.SizeGB -lt 0.10 -or $d.FreeGB -lt 10)) { & $add 'disk_low' 'bad' $d.Name $d.FreeGB } }
+    if ($null -ne $S.DiskPct -and $S.DiskPct -ge 95) { & $add 'disk_busy' 'warn' '' '' }
+    if ($null -ne $S.TempC -and $S.TempC -ge 85) { & $add 'temp_high' 'bad' $S.TempC '' }
+    if ($null -ne $S.Battery -and $S.Battery -le 20 -and -not $S.Charging) { & $add 'battery_low' 'warn' $S.Battery '' }
+    if ($S.UptimeSec -gt 14 * 86400) { & $add 'uptime_long' 'info' ([int]($S.UptimeSec / 86400)) '' }
+    return @($t)
+}
+function Get-TipText($Tip) {
+    switch ($Tip.Id) {
+        'cpu_high'      { return ('The processor is busy. {0} uses {1} %. Close it if you are not using it.' -f $Tip.A1, $Tip.A2) }
+        'ram_high'      { return ('Memory is nearly full. {0} uses {1} MB. Close it or its tabs.' -f $Tip.A1, $Tip.A2) }
+        'disk_low'      { return ('Drive {0} has only {1} GB free. Use "Clean" or "Space analyzer".' -f $Tip.A1, $Tip.A2) }
+        'disk_busy'     { return 'The disk is at its limit. Wait for the work to finish, or close heavy programs.' }
+        'temp_high'     { return ('The PC is hot ({0} C). Check the fans and the air flow.' -f $Tip.A1) }
+        'battery_low'   { return ('Battery is at {0} %. Plug in the charger.' -f $Tip.A1) }
+        'uptime_long'   { return ('This PC has not restarted for {0} days. A restart clears memory and finishes updates.' -f $Tip.A1) }
+        'startup_many'  { return ('{0} programs start with Windows. Disable what you do not need ("Startup programs").' -f $Tip.A1) }
+        'findings_high' { return ('The last health check found {0} important problem(s). Run "Doctor".' -f $Tip.A1) }
+        'no_scan'       { return 'No health check has run yet. Run "Doctor" once.' }
+    }
+    return [string]$Tip.Id
+}
+
+# ---- performance history: one line every 5 minutes, kept 14 days, written by a small scheduled task (opt-in)
+$script:PerfFile = Join-Path $script:Dir 'turbo_perf.csv'
+$script:TaskPerf = 'TurboOptimizer PerfLog'
+$script:PerfInv = [Globalization.CultureInfo]::InvariantCulture
+function Add-PerfSample($S) {
+    try {
+        $inv = $script:PerfInv
+        $tc = @($S.TopCpu | Select-Object -First 1); $tr = @($S.TopRam | Select-Object -First 1)
+        $tcn = ''; $tcp = 0; $trn = ''; $trm = 0
+        if ($tc.Count) { $tcn = [string]$tc[0].Name; $tcp = [double]$tc[0].Cpu }
+        if ($tr.Count) { $trn = [string]$tr[0].Name; $trm = [int]$tr[0].MemMB }
+        $nz = { param($v) if ($null -eq $v) { '' } else { ([double]$v).ToString($inv) } }
+        $net = [int]$S.NetDownKB + [int]$S.NetUpKB
+        $line = [string]::Format($inv, '{0},{1},{2},{3},{4},{5},{6},{7},{8},{9}', (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', $inv), (& $nz $S.Cpu), (& $nz $S.RamPct), (& $nz $S.DiskPct), $net, (& $nz $S.TempC), ($tcn -replace '[,\r\n]', ''), $tcp.ToString($inv), ($trn -replace '[,\r\n]', ''), $trm)
+        if (-not (Test-Path -LiteralPath $script:PerfFile)) { Set-Content -LiteralPath $script:PerfFile -Value 'ts,cpu,ram,disk,net,temp,topcpu,topcpupct,topram,topmb' -Encoding ASCII }
+        Add-Content -LiteralPath $script:PerfFile -Value $line -Encoding ASCII
+        if ((Get-Item -LiteralPath $script:PerfFile).Length -gt 300KB) { Limit-PerfFile }
+    } catch {}
+}
+function Limit-PerfFile {
+    $inv = $script:PerfInv; $cut = (Get-Date).AddDays(-14)
+    $rows = @(Get-Content -LiteralPath $script:PerfFile | Select-Object -Skip 1)
+    $keep = @($rows | Where-Object { try { [datetime]::ParseExact($_.Substring(0, 19), 'yyyy-MM-dd HH:mm:ss', $inv) -ge $cut } catch { $false } })
+    Set-Content -LiteralPath $script:PerfFile -Value (@('ts,cpu,ram,disk,net,temp,topcpu,topcpupct,topram,topmb') + $keep) -Encoding ASCII
+}
+function Get-PerfRows([int]$Hours, [string]$Path = '') {
+    if (-not $Path) { $Path = $script:PerfFile }
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    $inv = $script:PerfInv; $since = (Get-Date).AddHours(-$Hours)
+    $num = { param($x) if ($x -eq '') { $null } else { [double]::Parse($x, $inv) } }
+    $out = New-Object System.Collections.ArrayList
+    foreach ($ln in @(Get-Content -LiteralPath $Path | Select-Object -Skip 1)) {
+        $f = $ln -split ','
+        if ($f.Count -lt 10) { continue }
+        try {
+            $ts = [datetime]::ParseExact($f[0], 'yyyy-MM-dd HH:mm:ss', $inv)
+            if ($ts -lt $since) { continue }
+            [void]$out.Add([pscustomobject]@{ Ts = $ts; Cpu = (& $num $f[1]); Ram = (& $num $f[2]); Disk = (& $num $f[3]); Net = (& $num $f[4]); Temp = (& $num $f[5]); TopCpu = $f[6]; TopCpuPct = (& $num $f[7]); TopRam = $f[8]; TopMB = (& $num $f[9]) })
+        } catch { continue }
+    }
+    return @($out)
+}
+# Averages, a chart series (at most 96 points) and the worst moments (busy processor or memory, 30 minutes apart).
+function Get-PerfSummary([int]$Hours = 24, [string]$Path = '') {
+    $rows = @(Get-PerfRows $Hours $Path)
+    $res = @{ Hours = $Hours; Count = $rows.Count; AvgCpu = $null; AvgRam = $null; MaxCpu = $null; MaxRam = $null; Points = @(); Worst = @() }
+    if (-not $rows.Count) { return $res }
+    $cpu = @($rows | Where-Object { $null -ne $_.Cpu } | ForEach-Object { $_.Cpu }); $ram = @($rows | Where-Object { $null -ne $_.Ram } | ForEach-Object { $_.Ram })
+    if ($cpu.Count) { $res.AvgCpu = [int][math]::Round(($cpu | Measure-Object -Average).Average, 0); $res.MaxCpu = [int]($cpu | Measure-Object -Maximum).Maximum }
+    if ($ram.Count) { $res.AvgRam = [int][math]::Round(($ram | Measure-Object -Average).Average, 0); $res.MaxRam = [int]($ram | Measure-Object -Maximum).Maximum }
+    $g = [int][math]::Ceiling($rows.Count / 96.0); if ($g -lt 1) { $g = 1 }
+    $pts = New-Object System.Collections.ArrayList
+    for ($i = 0; $i -lt $rows.Count; $i += $g) {
+        $ch = @($rows[$i..([math]::Min($rows.Count - 1, $i + $g - 1))])
+        $c = @($ch | Where-Object { $null -ne $_.Cpu } | ForEach-Object { $_.Cpu }); $r = @($ch | Where-Object { $null -ne $_.Ram } | ForEach-Object { $_.Ram })
+        $cm = 0; if ($c.Count) { $cm = [int]($c | Measure-Object -Maximum).Maximum }
+        $rm = 0; if ($r.Count) { $rm = [int]($r | Measure-Object -Maximum).Maximum }
+        [void]$pts.Add(@{ T = $ch[0].Ts.ToString('yyyy-MM-ddTHH:mm:ss'); Cpu = $cm; Ram = $rm })
+    }
+    $res.Points = @($pts)
+    $rank = @($rows | Where-Object { ($_.Cpu -ge 70) -or ($_.Ram -ge 85) } | Sort-Object { [math]::Max([double]$_.Cpu, [double]$_.Ram) } -Descending)
+    $acc = New-Object System.Collections.ArrayList
+    foreach ($x in $rank) {
+        if ($acc.Count -ge 5) { break }
+        $near = $false
+        foreach ($a in $acc) { if ([math]::Abs(($a.Ts - $x.Ts).TotalMinutes) -lt 30) { $near = $true; break } }
+        if (-not $near) { [void]$acc.Add($x) }
+    }
+    $res.Worst = @($acc | ForEach-Object { @{ T = $_.Ts.ToString('yyyy-MM-ddTHH:mm:ss'); Cpu = $_.Cpu; Ram = $_.Ram; Disk = $_.Disk; TopCpu = $_.TopCpu; TopCpuPct = $_.TopCpuPct; TopRam = $_.TopRam; TopMB = $_.TopMB } })
+    return $res
+}
+function Test-PerfLogOn { return [bool](Get-ScheduledTask -TaskName $script:TaskPerf -ErrorAction SilentlyContinue) }
+function Set-PerfLog([bool]$On) {
+    $exists = Test-PerfLogOn
+    if (-not $On) {
+        if ($exists) { Invoke-Act 'Stop recording performance history' { Unregister-ScheduledTask -TaskName $script:TaskPerf -Confirm:$false -ErrorAction Stop } }
+        if (-not $script:DryRun) { Say '  Performance recording is off. The saved history stays until you delete turbo_perf.csv.' Green }
+        return
+    }
+    Invoke-Act 'Record performance every 5 minutes (a small file, 14 days, no window)' {
+        $act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -PerfLog' -f (Join-Path $script:Dir 'TurboOptimizer.ps1'))
+        $trg = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
+        $prin = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType S4U -RunLevel Limited
+        $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 3)
+        Register-ScheduledTask -TaskName $script:TaskPerf -Action $act -Trigger $trg -Principal $prin -Settings $set -Force -ErrorAction Stop | Out-Null
+    }
+    if (-not $script:DryRun) { Add-PerfSample (Get-MonitorSample); Say '  Performance recording is on (every 5 minutes, kept 14 days).' Green; Write-Log 'Performance recording turned on' }
+}
+function Show-PerfSummary($P) {
+    if (-not $P.Count) { Say '  No samples yet.' Yellow; return }
+    Say ('  Last {0} hours: {1} samples. Processor average {2} % (peak {3} %), memory average {4} % (peak {5} %).' -f $P.Hours, $P.Count, $P.AvgCpu, $P.MaxCpu, $P.AvgRam, $P.MaxRam) White
+    if (-not @($P.Worst).Count) { Say '  No slow moments: the processor stayed under 70 % and memory under 85 %.' Green; return }
+    Say '  Busiest moments:' White
+    foreach ($w in @($P.Worst)) {
+        $who = ''; if ($w.TopCpu) { $who = ('   most processor: {0} ({1} %)' -f $w.TopCpu, $w.TopCpuPct) }
+        Say ('    {0}   CPU {1} %   RAM {2} %{3}' -f ([datetime]$w.T).ToString('MM-dd HH:mm'), $w.Cpu, $w.Ram, $who) Gray
+    }
+}
+function Invoke-PerfHistory {
+    Say '[+] Performance history' Cyan
+    $on = Test-PerfLogOn
+    if ($on) { Say '  Recording is ON (every 5 minutes).' Green } else { Say '  Recording is OFF.' Yellow }
+    Show-PerfSummary (Get-PerfSummary 24)
+    if (-not $on -and -not $script:AutoYes -and -not $script:Unattended) {
+        if (Ask '  Turn recording on? (one line every 5 minutes, kept 14 days, nothing leaves this PC)') { Set-PerfLog $true }
+    }
+}
+
+# ---- device summary: one score and the advice behind it
+function Get-DeviceSummary {
+    $S = Get-MonitorSample
+    $startup = 0; try { $startup = @(Get-StartupItems).Count } catch {}
+    $high = -1; $med = 0
+    if (Test-Path -LiteralPath $script:HealthFile) { try { $h = Get-Content -LiteralPath $script:HealthFile -Raw | ConvertFrom-Json; $high = [int]$h.High; $med = [int]$h.Med } catch {} }
+    $parts = New-Object System.Collections.ArrayList
+    $part = { param($id, $pts, $max) [void]$parts.Add(@{ Id = $id; Pts = [int]$pts; Max = [int]$max }) }
+    $p = 14; if ($null -ne $S.RamPct) { if ($S.RamPct -lt 70) { $p = 20 } elseif ($S.RamPct -lt 85) { $p = 14 } elseif ($S.RamPct -lt 92) { $p = 8 } else { $p = 2 } }
+    & $part 'mem' $p 20
+    $p = 7; if ($null -ne $S.Cpu) { if ($S.Cpu -lt 60) { $p = 10 } elseif ($S.Cpu -lt 85) { $p = 6 } else { $p = 2 } }
+    & $part 'cpu' $p 10
+    $p = 25; $worst = 1.0
+    foreach ($d in @($S.Drives)) { if ($d.SizeGB -gt 0) { $worst = [math]::Min($worst, $d.FreeGB / $d.SizeGB) } }
+    if ($worst -lt 0.10) { $p = 3 } elseif ($worst -lt 0.15) { $p = 10 } elseif ($worst -lt 0.25) { $p = 18 }
+    & $part 'disk' $p 25
+    $p = 2; if ($startup -le 10) { $p = 15 } elseif ($startup -le 20) { $p = 10 } elseif ($startup -le 30) { $p = 6 }
+    & $part 'startup' $p 15
+    $p = 14; if ($high -ge 0) { $p = [math]::Max(0, 20 - [math]::Min(20, $high * 7 + $med * 2)) }
+    & $part 'checks' $p 20
+    $p = 10; if ($null -ne $S.TempC) { if ($S.TempC -ge 85) { $p = 2 } elseif ($S.TempC -ge 75) { $p = 6 } }
+    if ($S.UptimeSec -gt 14 * 86400) { $p = [math]::Max(0, $p - 4) }
+    & $part 'care' $p 10
+    $score = 0; foreach ($x in $parts) { $score += $x.Pts }
+    $tips = New-Object System.Collections.ArrayList
+    foreach ($x in @(Get-MonitorTips $S)) { [void]$tips.Add($x) }
+    if ($startup -gt 25) { [void]$tips.Add(@{ Id = 'startup_many'; Level = 'warn'; A1 = [string]$startup; A2 = '' }) }
+    if ($high -gt 0) { [void]$tips.Add(@{ Id = 'findings_high'; Level = 'bad'; A1 = [string]$high; A2 = '' }) }
+    if ($high -lt 0) { [void]$tips.Add(@{ Id = 'no_scan'; Level = 'info'; A1 = ''; A2 = '' }) }
+    return @{ Score = [int][math]::Min(100, $score); Parts = @($parts); Tips = @($tips); Startup = $startup; High = $high; Med = $med; Sample = $S }
+}
+function Invoke-SummaryView {
+    Say '[+] Device summary' Cyan
+    $d = Get-DeviceSummary
+    $c = 'Green'; if ($d.Score -lt 50) { $c = 'Red' } elseif ($d.Score -lt 75) { $c = 'Yellow' }
+    Say ('  Health score: {0} / 100' -f $d.Score) $c
+    $names = @{ mem = 'Memory'; cpu = 'Processor'; disk = 'Free space'; startup = 'Startup programs'; checks = 'Health check'; care = 'Heat and restarts' }
+    foreach ($x in @($d.Parts)) { Say ('  {0,-18} {1}  {2,2} / {3}' -f $names[$x.Id], (Format-Bar $x.Pts $x.Max 20), $x.Pts, $x.Max) Gray }
+    Say ''
+    if (-not @($d.Tips).Count) { Say '  Nothing needs attention right now.' Green }
+    foreach ($t in @($d.Tips)) { $tc = 'Yellow'; if ($t.Level -eq 'bad') { $tc = 'Red' } elseif ($t.Level -eq 'info') { $tc = 'Gray' }; Say ('  - ' + (Get-TipText $t)) $tc }
 }
 
 # ---------------------------------------------------------------- remove programs completely
@@ -3324,6 +3524,17 @@ function Split-CommandLine([string]$Line) {
     if ($m.Success) { return @{ File = $m.Groups[1].Value; Args = $m.Groups[2].Value.Trim() } }
     return $null
 }
+# Reads the uninstaller itself to see which installer made it (Inno Setup or NSIS), so the right quiet switch can be used.
+function Get-InstallerKind([string]$File) {
+    try {
+        if (-not $File -or -not (Test-Path -LiteralPath $File -PathType Leaf)) { return '' }
+        if ((Get-Item -LiteralPath $File).Length -gt 30MB) { return '' }
+        $txt = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($File))
+        if ($txt.Contains('Inno Setup')) { return 'inno' }
+        if ($txt.Contains('Nullsoft Install System') -or $txt.Contains('NSIS Error')) { return 'nsis' }
+    } catch {}
+    return ''
+}
 function Get-UninstallPlan($P) {
     if ($P.Kind -eq 'Store') { return @{ Mode = 'store'; File = ''; Args = $P.PackageFullName } }
     if ($P.Msi) { return @{ Mode = 'msi'; File = 'msiexec.exe'; Args = ('/x {0} /qn /norestart' -f $P.Msi) } }
@@ -3333,15 +3544,23 @@ function Get-UninstallPlan($P) {
     $m = [regex]::Match($cmd, '(?i)msiexec(\.exe)?"?\s+/[ix]\s*(\{[0-9A-F-]{36}\})')
     if ($m.Success) { return @{ Mode = 'msi'; File = 'msiexec.exe'; Args = ('/x {0} /qn /norestart' -f $m.Groups[2].Value) } }
     $sp = Split-CommandLine $cmd
-    if ($sp -and $sp.File) { return @{ Mode = $mode; File = $sp.File; Args = $sp.Args } }
-    return @{ Mode = 'none'; File = ''; Args = '' }
+    if ($sp -and $sp.File) {
+        $plan = @{ Mode = $mode; File = $sp.File; Args = $sp.Args; Kind = ''; Original = $sp.Args }
+        if ($mode -eq 'interactive') {
+            $k = Get-InstallerKind $sp.File
+            if ($k -eq 'inno') { $plan.Mode = 'quiet'; $plan.Kind = $k; $plan.Args = ($sp.Args + ' /VERYSILENT /NORESTART /SUPPRESSMSGBOXES').Trim() }
+            elseif ($k -eq 'nsis') { $plan.Mode = 'quiet'; $plan.Kind = $k; $plan.Args = ($sp.Args + ' /S').Trim() }
+        }
+        return $plan
+    }
+    return @{ Mode = 'none'; File = ''; Args = ''; Kind = ''; Original = '' }
 }
 function Test-ProgramGone($P) {
     if ($P.Kind -eq 'Store') { return -not (@(Get-AppxPackage -Name $P.Name -ErrorAction SilentlyContinue | Where-Object { $_.PackageFullName -eq $P.PackageFullName }).Count) }
     return -not (Test-Path -LiteralPath $P.RegPath)
 }
 function Invoke-ProgramUninstaller($P, $Plan) {
-    $r = @{ Ran = $false; Gone = $false; Reboot = $false }
+    $r = @{ Ran = $false; Gone = $false; Reboot = $false; Code = $null }
     if ($Plan.Mode -eq 'none') { return $r }
     if ($Plan.Mode -eq 'store') {
         try { Remove-AppxPackage -Package $Plan.Args -ErrorAction Stop; $r.Ran = $true } catch { Say "  [x]   $($_.Exception.Message)" Red; Add-ErrorRecord "Remove $($P.Name)" $_ }
@@ -3356,6 +3575,7 @@ function Invoke-ProgramUninstaller($P, $Plan) {
         $r.Ran = $true
     } catch { Add-ErrorRecord "Start the uninstaller of $($P.Name)" $_; return $r }
     $limit = 300; if ($Plan.Mode -eq 'interactive') { $limit = 900 }
+    $grace = 20; if ($Plan.Kind -eq 'nsis') { $grace = 90 }
     $deadline = (Get-Date).AddSeconds($limit)
     $exitedAt = $null
     Working-Begin "Uninstalling $($P.Name)"
@@ -3364,13 +3584,14 @@ function Invoke-ProgramUninstaller($P, $Plan) {
         if ($proc.HasExited) {
             if (-not $exitedAt) { $exitedAt = Get-Date }
             $helpers = @(Get-Process -Name 'unins*', 'uninst*', 'uninstall*' -ErrorAction SilentlyContinue).Count
-            if (((Get-Date) - $exitedAt).TotalSeconds -gt 20 -and $helpers -eq 0) { break }
+            if (((Get-Date) - $exitedAt).TotalSeconds -gt $grace -and $helpers -eq 0) { break }
         }
         Start-Sleep -Seconds 2
     }
     Working-End
     if ($proc.HasExited) {
         $code = $proc.ExitCode
+        $r.Code = $code
         Write-Log "Uninstaller of $($P.Name) exit code $code"
         if ($code -eq 3010 -or $code -eq 1641) { $r.Reboot = $true }
     }
@@ -3548,6 +3769,11 @@ function Invoke-DeepUninstall([string[]]$Keys) {
             continue
         }
         $res = Invoke-ProgramUninstaller $p $plan
+        if (-not $res.Gone -and $plan.Kind -and $plan.Original -ne $null) {
+            Say '  The quiet removal did not finish. Opening the program''s own uninstaller so you can follow its steps.' Yellow
+            $plan2 = @{ Mode = 'interactive'; File = $plan.File; Args = $plan.Original; Kind = ''; Original = $plan.Original }
+            $res = Invoke-ProgramUninstaller $p $plan2
+        }
         $force = $false
         if ($res.Reboot) { Say '  Windows needs a restart to finish this removal.' Yellow }
         if (-not $res.Gone) {
@@ -3773,7 +3999,9 @@ $script:MenuDef = @(
         @{ N = '2';  T = 'Diagnose (read-only)';          P = 'Diagnose';            A = { Invoke-Diagnose } },
         @{ N = '3';  T = 'ALL-IN-ONE optimization';       P = 'All-in-one';          A = { Invoke-All } },
         @{ N = '4';  T = 'HTML report';                   P = 'HTML report';         A = { Export-HtmlReport } },
-        @{ N = '31'; T = 'Live monitor (CPU, RAM, disk)'; P = 'Live monitor';        A = { Invoke-MonitorView } }) },
+        @{ N = '31'; T = 'Live monitor (CPU, RAM, disk)'; P = 'Live monitor';        A = { Invoke-MonitorView } },
+        @{ N = '33'; T = 'Performance history (why was it slow?)'; P = 'Performance history'; A = { Invoke-PerfHistory } },
+        @{ N = '34'; T = 'Device summary: score and advice'; P = 'Device summary'; A = { Invoke-SummaryView } }) },
     @{ G = 'CLEAN AND SPACE'; Items = @(
         @{ N = '5';  T = 'Clean files';                   P = 'Clean files';         A = { Invoke-Clean } },
         @{ N = '6';  T = 'Free up space';                 P = 'Free up space';       A = { Invoke-SpaceAnalyzer } },
@@ -3923,6 +4151,8 @@ function Start-SelfTest {
         @{ N = 'biosdump';     A = { Invoke-BiosDump } },
         @{ N = 'monitor';      A = { $m = Get-MonitorSample; if ($null -eq $m.RamPct) { throw 'no RAM reading' } } },
         @{ N = 'monitorview';  A = { Invoke-MonitorView } },
+        @{ N = 'perf';         A = { Invoke-PerfHistory } },
+        @{ N = 'summary';      A = { $d = Get-DeviceSummary; if ($d.Score -lt 0 -or $d.Score -gt 100) { throw 'bad score' }; Invoke-SummaryView } },
         @{ N = 'programs';     A = { Invoke-ProgramsMenu } },
         @{ N = 'uninstall-dry'; A = { $q = @(Get-InstalledPrograms | Where-Object { $_.Kind -eq 'Win32' -and -not (Test-ProgramProtected $_) } | Select-Object -First 1); if ($q.Count) { Invoke-DeepUninstall -Keys @($q[0].Key) } } }
     )
@@ -3939,6 +4169,7 @@ function Start-SelfTest {
 # ---------------------------------------------------------------- main
 if ($AsLibrary) { return }     # the graphical version only needs the functions above
 if ($SelfTest) { Start-SelfTest }
+if ($PerfLog) { Add-PerfSample (Get-MonitorSample); exit 0 }     # the 5-minute recorder: one sample, no log noise
 
 Write-Log '==============================================='
 Write-Log "Script started (v$($script:Version)) DryRun=$($script:DryRun)"

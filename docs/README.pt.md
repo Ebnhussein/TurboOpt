@@ -12,6 +12,8 @@ Sem instalador, sem anúncios, sem telemetria. Cole uma linha no PowerShell: a f
 
 - **Doutor:** verifica atualizações, drivers, DLLs, saúde do disco, segurança e log de eventos, e corrige o que você escolher.
 - **Limpador de PC:** temporários, cache de atualizações e de navegadores, análise de espaço, TRIM para SSD, remoção de apps pré-instalados.
+- **Remover programas por completo:** executa o desinstalador de cada programa, procura o que ele deixa (pastas, chaves do registro, tarefas) e só apaga com a sua aprovação. Os arquivos vão para a lixeira e tudo pode ser desfeito.
+- **Monitor e resumo do dispositivo:** uso de processador, memória, disco e rede ao vivo, uma pontuação de saúde com conselhos e alertas, encerrar programas pesados e um histórico de desempenho que mostra por que o PC estava lento.
 - **Acelerar o Windows:** plano de energia de alto desempenho, gerenciador de inicialização, serviços opcionais.
 - **Atualizar e reparar:** apps via winget, SFC e DISM, backup e restauração de drivers.
 - **Rede:** correções de Wi-Fi e Bluetooth, teste de DNS, verificação do arquivo hosts e do canal Wi-Fi.

@@ -1,5 +1,14 @@
 # Changelog
 
+## v12.8
+
+- Device summary (new page, option 34 in the console): one health score out of 100 and the advice behind it, each with a button (end a program, open Clean, startup programs, run the check).
+- Monitor advice and alerts: processor, memory, drive space, disk, heat, battery and long uptime are explained in plain words. Advice that lasts 30 seconds becomes an alert (a message and a dot on the Monitor button), also when you are on another page.
+- End a program from the monitor (confirmation first). Windows' own processes, Defender, the shell and this tool cannot be ended, and the page can only ask for names it was shown.
+- Performance history (option 33 in the console): opt-in. A hidden task (no window, no password) writes one line every 5 minutes into turbo_perf.csv, kept 14 days. The monitor shows a 24-hour or 7-day chart, the averages and peaks, and the busiest moments with the program that used the most processor.
+- Program removal now recognises Inno Setup and NSIS uninstallers from the file itself and uses their quiet switches when the program gives none; if the quiet run does not finish, the program's own screens open once. NSIS uninstallers that copy themselves and exit are waited for.
+- Tests: real runs of the uninstaller with small fake programs (quiet, self-relaunching, does-nothing, missing), ending a process, advice thresholds, history from made-up data, damaged history lines, the summary score; 2 more self-test steps. 48 new texts in all 10 languages. The short README in each language lists the new features.
+
 ## v12.7
 
 - Live monitor (new "Monitor" page, option 31 in the console): processor, memory, disk and network use with a short history, drives, the processes using the most processor and memory, temperature and battery when available. Read-only. It uses Windows performance classes that have English names, so it works on every Windows language.

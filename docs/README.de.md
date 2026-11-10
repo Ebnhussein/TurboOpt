@@ -12,6 +12,8 @@ Keine Installation, keine Werbung, keine Telemetrie. Fügen Sie eine Zeile in Po
 
 - **Doktor:** prüft Updates, Treiber, DLLs, Datenträgerzustand, Sicherheit und Ereignisprotokoll und behebt Ihre Auswahl.
 - **PC-Reiniger:** temporäre Dateien, Update- und Browser-Caches, Speicheranalyse, TRIM für SSDs, Entfernen vorinstallierter Apps.
+- **Programme restlos entfernen:** startet das Deinstallationsprogramm jedes Programms, sucht danach Reste (Ordner, Registrierungsschlüssel, Aufgaben) und löscht sie erst nach Ihrer Zustimmung. Dateien gehen in den Papierkorb, alles lässt sich rückgängig machen.
+- **Monitor und Geräteübersicht:** Prozessor, Speicher, Datenträger und Netzwerk live, ein Gesundheitswert mit Hinweisen und Warnungen, schwere Programme beenden und ein Leistungsverlauf, der zeigt, warum der PC vorhin langsam war.
 - **Windows beschleunigen:** Energiesparplan Höchstleistung, Autostart-Verwaltung, optionale Dienste.
 - **Update und Reparatur:** Apps über winget, SFC und DISM, Treiber sichern und wiederherstellen.
 - **Netzwerk:** WLAN- und Bluetooth-Fixes, DNS-Test, Prüfung der Hosts-Datei und des WLAN-Kanals.

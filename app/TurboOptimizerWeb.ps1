@@ -100,7 +100,8 @@ $script:Plat = $null
 '@
 $monBootstrap = @'
 . $sync.Core -AsLibrary
-function Publish-Monitor { $sync.Mon = Get-MonitorSample }
+function Publish-Monitor { $m = Get-MonitorSample; $m.Tips = @(Get-MonitorTips $m); $sync.Mon = $m }
+function Publish-Summary { $sync.Sum = Get-DeviceSummary; $sync.SumAt = Get-Date }
 '@
 $infoBootstrap = @'
 . $sync.Core -AsLibrary
@@ -140,26 +141,40 @@ try { [void]$ib.Invoke() } catch {}
 $ib.Dispose()
 
 $monRs = $null
-function Start-MonitorRefresh {
+function Initialize-MonRunspace {
+    if ($script:MonRsReady) { return }
+    $script:MonRsReady = $true
+    $script:MonRs = [runspacefactory]::CreateRunspace()
+    $script:MonRs.ApartmentState = 'STA'
+    $script:MonRs.ThreadOptions = 'ReuseThread'
+    $script:MonRs.Open()
+    $script:MonRs.SessionStateProxy.SetVariable('sync', $sync)
+    $mb = [powershell]::Create(); $mb.Runspace = $script:MonRs
+    [void]$mb.AddScript($monBootstrap)
+    try { [void]$mb.Invoke() } catch {}
+    $mb.Dispose()
+}
+# Starts one background job in the monitor runspace (one at a time). Job: 'mon' = a sample, 'sum' = the device summary.
+function Start-MonitorRefresh([string]$Job = 'mon') {
     if ($script:MonAsync -and -not $script:MonAsync.IsCompleted) { return }
     if ($script:MonPs) { try { $script:MonPs.Dispose() } catch {}; $script:MonPs = $null }
-    if (-not $script:MonRsReady) {
-        $script:MonRsReady = $true
-        $script:MonRs = [runspacefactory]::CreateRunspace()
-        $script:MonRs.ApartmentState = 'STA'
-        $script:MonRs.ThreadOptions = 'ReuseThread'
-        $script:MonRs.Open()
-        $script:MonRs.SessionStateProxy.SetVariable('sync', $sync)
-        $mb = [powershell]::Create(); $mb.Runspace = $script:MonRs
-        [void]$mb.AddScript($monBootstrap)
-        try { [void]$mb.Invoke() } catch {}
-        $mb.Dispose()
-    }
+    Initialize-MonRunspace
     $ps = [powershell]::Create()
     $ps.Runspace = $script:MonRs
-    [void]$ps.AddScript('try { Publish-Monitor } catch { }')
+    if ($Job -eq 'sum') { [void]$ps.AddScript('try { Publish-Summary } catch { }') } else { [void]$ps.AddScript('try { Publish-Monitor } catch { }') }
     $script:MonPs = $ps
     $script:MonAsync = $ps.BeginInvoke()
+}
+# Runs a short command in the monitor runspace and waits for the answer (after the running job, at most 15 seconds).
+function Invoke-MonRs([string]$Code, $Arg = $null) {
+    Initialize-MonRunspace
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($script:MonAsync -and -not $script:MonAsync.IsCompleted -and $sw.Elapsed.TotalSeconds -lt 15) { Start-Sleep -Milliseconds 100 }
+    if ($script:MonAsync -and -not $script:MonAsync.IsCompleted) { return $null }
+    $ps = [powershell]::Create(); $ps.Runspace = $script:MonRs
+    [void]$ps.AddScript($Code)
+    if ($null -ne $Arg) { [void]$ps.AddArgument($Arg) }
+    try { return @($ps.Invoke())[0] } catch { return $null } finally { $ps.Dispose() }
 }
 
 # ---------------------------------------------------------------- what the page may ask for (by name only)
@@ -175,6 +190,7 @@ $Categories = @(
         @{ K = 'act_disks'; D = 'd_disks'; Cmd = 'Invoke-DiskOptimize' },
         @{ K = 'act_debloat'; D = 'd_debloat'; Cmd = 'Invoke-Debloat' },
         @{ K = 'act_programs'; D = 'd_programs'; Cmd = 'Publish-Programs' }) },
+    @{ Id = 'summary'; K = 'cat_summary'; Actions = @() },
     @{ Id = 'monitor'; K = 'cat_monitor'; Actions = @() },
     @{ Id = 'speed'; K = 'cat_speed'; Actions = @(
         @{ K = 'act_turbo'; D = 'd_turbo'; Cmd = 'Invoke-Turbo' },
@@ -477,6 +493,35 @@ function Handle-Request($ctx) {
             Start-MonitorRefresh
             Send-Json $ctx @{ m = $sync.Mon }
         }
+        '/api/summary' {
+            if (-not $sync.Sum -or ((Get-Date) - $sync.SumAt).TotalSeconds -gt 20) { Start-MonitorRefresh 'sum' }
+            Send-Json $ctx @{ d = $sync.Sum }
+        }
+        '/api/endproc' {
+            $name = [string]$body.name
+            $listed = @(@($sync.Mon.TopCpu) + @($sync.Mon.TopRam) | Where-Object { $_ -and $_.Name -ceq $name -and -not $_.Protected })
+            if ($name -notmatch '^[\w\.\-\+ ()]{1,64}$' -or $listed.Count -eq 0) { Send-Json $ctx @{ error = 'bad request' } 400; return }
+            $n = Invoke-MonRs 'param($n) Stop-ProcessByName $n' $name
+            if ($null -eq $n -or [int]$n -lt 0) { Send-Json $ctx @{ error = 'refused' } 400; return }
+            $sync.SumAt = [datetime]'2000-01-01'
+            Send-Json $ctx @{ ok = $true; n = [int]$n }
+        }
+        '/api/perf' {
+            $h = 0
+            [void][int]::TryParse([string]$req.QueryString['h'], [ref]$h)
+            if ($h -ne 24 -and $h -ne 168) { Send-Json $ctx @{ error = 'bad request' } 400; return }
+            $sum = Invoke-MonRs 'param($h) @{ s = (Get-PerfSummary $h); on = (Test-PerfLogOn) }' $h
+            if ($null -eq $sum) { Send-Json $ctx @{ error = 'busy' } 409; return }
+            Send-Json $ctx $sum
+        }
+        '/api/perflog' {
+            if ($null -eq $body -or $body.on -isnot [bool]) { Send-Json $ctx @{ error = 'bad request' } 400; return }
+            if ($script:Busy) { Send-Json $ctx @{ error = 'busy' } 409; return }
+            $script:LastDry = ($body.dry -eq $true)
+            $cmd = 'Set-PerfLog $false'; if ($body.on) { $cmd = 'Set-PerfLog $true' }
+            Start-Action $cmd (Get-Text 'hist_title') $script:LastDry
+            Send-Json $ctx @{ ok = $true }
+        }
         '/api/uninstall' {
             $keys = @(@($body.keys) | ForEach-Object { [string]$_ } | Where-Object { $_ -match '^(Win32\|(machine|machine32|user)\|[^|;"<>`$]{1,200}|Store\|[\w\.\-~]{1,200})$' })
             if ($keys.Count -eq 0 -or $keys.Count -gt 40) { Send-Json $ctx @{ error = 'bad request' } 400; return }
@@ -581,6 +626,17 @@ try {
     [void](Call 'GET' '/api/monitor' $null); Start-Sleep -Seconds 6
     $mon = (Call 'GET' '/api/monitor' $null).Text | ConvertFrom-Json
     Out-Line ("monitor sample       -> ram {0} %, processes {1}, drives {2}" -f $mon.m.RamPct, $mon.m.Procs, @($mon.m.Drives).Count)
+    $r = Call 'POST' '/api/endproc' @{ name = 'x; calc' }; Out-Line ("end process, odd name  -> {0} (want 400)" -f $r.Code)
+    $r = Call 'POST' '/api/endproc' @{ name = 'explorer' }; Out-Line ("end process, protected -> {0} (want 400)" -f $r.Code)
+    $r = Call 'POST' '/api/endproc' @{ name = 'notepad' }; Out-Line ("end process, not listed -> {0} (want 400)" -f $r.Code)
+    $r = Call 'GET' '/api/perf?h=5' $null; Out-Line ("history, bad range    -> {0} (want 400)" -f $r.Code)
+    $r = Call 'GET' '/api/perf?h=24' $null; $pj = $r.Text | ConvertFrom-Json; Out-Line ("history 24h          -> {0} (want 200), samples {1}, recording {2}" -f $r.Code, $pj.s.Count, $pj.on)
+    $r = Call 'POST' '/api/perflog' @{ on = 'yes' }; Out-Line ("record switch, bad   -> {0} (want 400)" -f $r.Code)
+    $r = Call 'GET' '/api/summary' $null ''; Out-Line ("summary without token -> {0} (want 403)" -f $r.Code)
+    [void](Call 'GET' '/api/summary' $null); Start-Sleep -Seconds 12
+    $sm = (Call 'GET' '/api/summary' $null).Text | ConvertFrom-Json
+    Out-Line ("summary             -> score {0}, parts {1}, tips {2}" -f $sm.d.Score, @($sm.d.Parts).Count, @($sm.d.Tips).Count)
+    Out-Line ("monitor tips field   -> {0}" -f ($null -ne $mon.m.PSObject.Properties['Tips']))
     $page = (Call 'GET' ('/?t=' + $token) $null '').Text
     $m = [regex]::Match($page, 'const BOOT = (\{.*?\});\r?\n', 'Singleline')
     Out-Line ("page boot data parses: {0}" -f ($m.Success -and [bool]($m.Groups[1].Value | ConvertFrom-Json).cats))

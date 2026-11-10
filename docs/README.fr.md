@@ -12,6 +12,8 @@ Sans installation, sans publicité, sans télémétrie. Collez une ligne dans Po
 
 - **Docteur :** analyse mises à jour, pilotes, DLL, santé des disques, sécurité et journal d'événements, puis corrige ce que vous choisissez.
 - **Nettoyeur de PC :** fichiers temporaires, caches de mises à jour et de navigateurs, analyse de l'espace, TRIM pour SSD, suppression des applis préinstallées.
+- **Supprimer complètement les programmes :** lance le désinstalleur de chaque programme, puis cherche ce qu’il laisse (dossiers, clés de registre, tâches) et ne le supprime qu’avec votre accord. Les fichiers vont à la corbeille et tout peut être annulé.
+- **Moniteur et résumé de l’appareil :** processeur, mémoire, disque et réseau en direct, un score de santé avec conseils et alertes, fermeture des programmes gourmands et un historique qui montre pourquoi le PC était lent.
 - **Accélérer Windows :** mode d'alimentation performance, gestion du démarrage, services optionnels.
 - **Mise à jour et réparation :** applis via winget, SFC et DISM, sauvegarde et restauration des pilotes.
 - **Réseau :** correctifs Wi-Fi et Bluetooth, test DNS, contrôle du fichier hosts et du canal Wi-Fi.
